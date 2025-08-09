@@ -56,9 +56,9 @@ const fragTicks = document.getElementById("fragTicks");
 // ======= STATE =======
 const state = {
   targets: Object.fromEntries(STATS.map(k => [k, 0])),
-  minorModsCap: Number(minorModsSelect?.value || 0), // # of +5 mods allowed. Majors allowed = 5 - minorModsCap.
-  fragments: Object.fromEntries(STATS.map(k => [k, 0])), // −30..+30, applied globally
-  augments: [ // 4 rows of {plus: "none"|stat, minus:"none"|stat}
+  minorModsCap: Number(minorModsSelect?.value || 0), // # of +5 mods allowed
+  fragments: Object.fromEntries(STATS.map(k => [k, 0])), // −30/+30, applied globally
+  augments: [ 
     { plus: "none", minus: "none" },
     { plus: "none", minus: "none" },
     { plus: "none", minus: "none" },
@@ -66,7 +66,7 @@ const state = {
   ],
 };
 
-// ======= TICK MARKS (every 5) =======
+// ======= TICK MARKS =======
 function buildTickMarks(){
   if (ticks){
     ticks.innerHTML = "";
@@ -87,7 +87,7 @@ function buildTickMarks(){
 }
 function round5(n){ return Math.round(n/5)*5; }
 
-// ======= SLIDERS (targets) =======
+// ======= SLIDERS =======
 function makeSliderRow(statKey, value){
   const row = document.createElement("div");
   row.className = "row";
@@ -149,7 +149,7 @@ function buildSliders(){
   }
 }
 
-// ======= ARMOR AUGMENTATION UI (4 rows of +5/−5 selectors) =======
+// ======= ARMOR AUGMENTATION UI =======
 function buildAugmentationUI(){
   let panel = document.getElementById("augPanel");
   if (!panel){
@@ -177,7 +177,7 @@ function buildAugmentationUI(){
 
   for (let i = 0; i < 4; i++){
     const row = document.createElement("div");
-    // Make THIS row a grid: [label + select] [label + select]
+    
     row.style.display = "grid";
     row.style.gridTemplateColumns = "90px 1fr 90px 1fr";
     row.style.gap = "10px";
@@ -222,7 +222,7 @@ function makeStatSelect(current, onChange){
     sel.appendChild(o);
   }
   sel.addEventListener("change", (e)=> onChange(e.target.value));
-  // match your UI styling
+
   sel.style.background = "#0a1324";
   sel.style.border = "1px solid var(--border)";
   sel.style.borderRadius = "6px";
@@ -306,7 +306,6 @@ function buildFragmentsUI(){
     wrap.id = "fragsWrap";
     panel.appendChild(wrap);
 
-    // insert after augmentation panel if present, else after modsCtrl
     const augPanel = document.getElementById("augPanel");
     (augPanel || modsCtrlBox).after(panel);
   }
@@ -318,7 +317,7 @@ function buildFragmentsUI(){
   }
 }
 
-// ======= BEAM SEARCH (armor-only). Apply augments then fragments, then mods. =======
+// ======= BEAM SEARCH =======
 const BEAM_WIDTHS = [800, 1800, 3200];
 
 function recommendPieces(targets, minorModsCap){
@@ -425,9 +424,7 @@ function optimisticResidual(currentArmor, targets, augments, fragments, minorCap
   return raw * 1e-6;
 }
 
-/**
- * Apply augments (+5/−5) and fragments (±30), then allocate mods (majors first).
- */
+// apply armor tuning
 function allocateModsWithAugFrags(armorTotals, targets, augments, fragments, minorCap, majorCap){
   const baseAug = clampAddSigned(armorTotals, augmentsToVector(augments), 0, TOTAL_CAP);
   const base = clampAddSigned(baseAug, fragments, 0, TOTAL_CAP);
@@ -471,7 +468,7 @@ function allocateModsCore(startTotals, targets, minorCap, majorCap){
   return { totals, mods };
 }
 
-// Compute a vector from 4 rows of {plus, minus}
+// makes a vector from 4 rows of 
 function augmentsToVector(aug){
   const v = Object.fromEntries(STATS.map(k => [k, 0]));
   for (const row of aug){
@@ -481,7 +478,6 @@ function augmentsToVector(aug){
   return v;
 }
 
-// Attach each mod to one distinct piece for display (≤1 per piece)
 function distributeModsToPieces(pieces, mods){
   const out = pieces.map(p => ({ ...p }));
   let i = 0;
@@ -503,7 +499,7 @@ function clampAdd(a, b, cap){
   }
   return out;
 }
-// Signed add with floor and ceiling
+// add with floor and ceiling
 function clampAddSigned(a, b, floor, cap){
   const out = {};
   for (const k of STATS){
@@ -582,7 +578,7 @@ function render(){
     return;
   }
 
-  // --- Summary (group by set+type). Show Tertiaries and Mods lines. ---
+  // --- Summary. Show Tertiaries and Mods lines. ---
   const perGroup = new Map();
   for (const c of chosen){
     const key = `${c.setName} (${c.type})`;
