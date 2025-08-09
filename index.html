@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Destiny Armor Calculator</title>
+  <link rel="stylesheet" href="style.css"/>
+</head>
+<body>
+  <header class="container">
+    <h1>Destiny Armor Calculator</h1>
+    <p class="subtle">
+      Targets are minimums. Assumes 1 Exotic. Can adjust for Fragments, Tuning Mods, and Minor Mods.
+    </p>
+  </header>
+
+  <main class="container grid">
+    <section class="panel">
+      <h2>Target Stats</h2>
+      <div id="feasBox" class="feasBox subtle"></div>
+
+      <div id="sliders" class="sliders"></div>
+
+      <!-- Minor-mod selector (only control under sliders) -->
+      <div class="modsCtrl">
+        <label for="minorModsSelect">Minor Stat Mods:</label>
+        <select id="minorModsSelect">
+          <option value="0">0x</option>
+          <option value="1">1x</option>
+          <option value="2">2x</option>
+          <option value="3">3x</option>
+          <option value="4">4x</option>
+          <option value="5">5x</option>
+        </select>
+        <span class="subtle hint">Replaces Major Mods with Minor Mods.</span>
+      </div>
+
+      <datalist id="ticks">
+        <option value="0"></option>
+        <option value="50"></option>
+        <option value="100"></option>
+        <option value="150"></option>
+        <option value="200"></option>
+      </datalist>
+    </section>
+
+    <section class="panel">
+      <h2>Recommended Composition</h2>
+      <p class="subtle">Armor Comp needed for stats.</p>
+
+      <div class="slot">
+        <h3>Summary</h3>
+        <div id="summary" class="card-list"></div>
+      </div>
+
+      <div class="slot">
+        <h3>Per-Piece Details (5 total)</h3>
+        <div id="pieces" class="card-list"></div>
+      </div>
+
+      <div class="slot">
+        <h3>Total vs Target</h3>
+        <div id="totals" class="card-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="container footer">
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
