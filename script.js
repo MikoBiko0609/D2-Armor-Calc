@@ -403,11 +403,6 @@ function runBeam(targets, augments, fragments, minorModsCap, majorModsCap, BEAM_
   return { chosen: best.pieces, totals: best.totals, feasible };
 }
 
-/**
- * Optimistic residual: fill remaining armor with +30/slot (cap 150),
- * then apply augments (+5/−5), then fragments (±), then use all mods.
- * If still under target → prune.
- */
 function optimisticResidual(currentArmor, targets, augments, fragments, minorCap, majorCap, piecesLeft){
   const optimisticArmor = { ...currentArmor };
   const added = Math.max(0, piecesLeft) * 30;
