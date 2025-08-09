@@ -79,3 +79,12 @@ code{background:#0a1324;border:1px solid var(--border);border-radius:6px;padding
   color:var(--ink);padding:6px 10px;
 }
 .modsCtrl .hint{margin-left:auto;font-size:12px}
+
+/* Range slider live value */
+.rangeWrap{position:relative}
+.thumbTip{
+  position:absolute; bottom:-22px; transform:translateX(-50%);
+  background:#0a1324; border:1px solid var(--border); border-radius:6px;
+  padding:2px 6px; font-size:12px; color:var(--ink); pointer-events:none;
+  white-space:nowrap; opacity:.9
+}

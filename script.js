@@ -89,6 +89,52 @@ function buildTickMarks(){
 }
 function round5(n){ return Math.round(n/5)*5; }
 
+// ======= Tooltip + commit-on-release helpers =======
+function posThumbTip(input, tip){
+  const min = Number(input.min || 0);
+  const max = Number(input.max || 100);
+  const val = Number(input.value || 0);
+  const pct = (max === min) ? 0 : (val - min) / (max - min);
+  const w = input.clientWidth || 1;
+  tip.style.left = (pct * w) + "px";
+  tip.textContent = input.value;
+}
+function attachRangeWithTooltip(input, onCommit){
+  // If not in DOM yet, try again on next tick
+  if (!input.parentNode) {
+    queueMicrotask(() => attachRangeWithTooltip(input, onCommit));
+    return;
+  }
+  const wrap = document.createElement("div");
+  wrap.className = "rangeWrap";
+  input.parentNode.insertBefore(wrap, input);
+  wrap.appendChild(input);
+
+  const tip = document.createElement("div");
+  tip.className = "thumbTip";
+  tip.style.display = "none";
+  wrap.appendChild(tip);
+
+  const show = ()=>{ tip.style.display = "block"; posThumbTip(input, tip); };
+  const hide = ()=>{ tip.style.display = "none"; };
+
+  input.addEventListener("mouseenter", show);
+  input.addEventListener("mouseleave", hide);
+  input.addEventListener("focus", show);
+  input.addEventListener("blur", hide);
+
+  // Move tooltip while dragging; totals recompute only on release
+  input.addEventListener("input", ()=> posThumbTip(input, tip));
+
+  const commit = ()=> onCommit(input.value);
+  input.addEventListener("change", commit);   // fires on release
+  input.addEventListener("mouseup", commit);
+  input.addEventListener("touchend", commit);
+  input.addEventListener("keyup", (e)=>{ if (e.key === "Enter") commit(); });
+
+  posThumbTip(input, tip);
+}
+
 // ======= TARGET SLIDERS =======
 function makeSliderRow(statKey, value){
   const row = document.createElement("div");
@@ -129,18 +175,20 @@ function makeSliderRow(statKey, value){
     render();
   }
 
-  input.addEventListener("input", (e) => setTargetSafe(e.target.value));
-  valInput.addEventListener("change", (e) => setTargetSafe(e.target.value));
-  valInput.addEventListener("keydown", (e) => { if (e.key === "Enter") setTargetSafe(e.currentTarget.value); });
-
+  // Build DOM first
   row.appendChild(label);
   row.appendChild(input);
   valWrap.appendChild(valInput);
   valWrap.appendChild(slashMax);
   row.appendChild(valWrap);
-
   const spacer = document.createElement("div");
   row.appendChild(spacer);
+
+  // Only commit when released; show tooltip while dragging
+  attachRangeWithTooltip(input, (v)=> setTargetSafe(v));
+
+  valInput.addEventListener("change", (e) => setTargetSafe(e.target.value));
+  valInput.addEventListener("keydown", (e) => { if (e.key === "Enter") setTargetSafe(e.currentTarget.value); });
 
   return row;
 }
@@ -265,18 +313,20 @@ function makeFragmentRow(statKey, value){
     render();
   }
 
-  input.addEventListener("input", (e) => setFragSafe(e.target.value));
-  valInput.addEventListener("change", (e) => setFragSafe(e.target.value));
-  valInput.addEventListener("keydown", (e) => { if (e.key === "Enter") setFragSafe(e.currentTarget.value); });
-
+  // Build DOM first
   row.appendChild(label);
   row.appendChild(input);
   valWrap.appendChild(valInput);
   valWrap.appendChild(slashMax);
   row.appendChild(valWrap);
-
   const spacer = document.createElement("div");
   row.appendChild(spacer);
+
+  // Commit on release; tooltip while dragging
+  attachRangeWithTooltip(input, (v)=> setFragSafe(v));
+
+  valInput.addEventListener("change", (e) => setFragSafe(e.target.value));
+  valInput.addEventListener("keydown", (e) => { if (e.key === "Enter") setFragSafe(e.currentTarget.value); });
 
   return row;
 }
@@ -339,7 +389,7 @@ function buildCustomExoticUI(){
 
     const txt = document.createElement("span");
     txt.className = "subtle";
-    txt.textContent = "Used for Exotic Class Items or old Exotics. (Enter Numbers don't use slider its super laggy.";
+    txt.textContent = "Used for Exotic Class Items or old Exotics.";
 
     togg.appendChild(cb); togg.appendChild(txt);
     panel.appendChild(togg);
@@ -372,7 +422,7 @@ function buildCustomExoticUI(){
       const range = document.createElement("input");
       range.type = "range";
       range.min = "0";
-      range.max = "45";    // << per your request
+      range.max = "45";
       range.step = "1";
       range.value = String(state.customExotic?.[k] ?? 0);
 
@@ -391,11 +441,15 @@ function buildCustomExoticUI(){
         val.value = String(v);
         render();
       }
-      range.addEventListener("input", e=> setVal(e.target.value));
-      val.addEventListener("change", e=> setVal(e.target.value));
-      val.addEventListener("keydown", e=> { if (e.key === "Enter") setVal(e.currentTarget.value); });
 
-      row.appendChild(lab); row.appendChild(range); row.appendChild(val);
+      // Build DOM first
+      row.appendChild(lab);
+      row.appendChild(range);
+      row.appendChild(val);
+
+      // Commit on release + tooltip
+      attachRangeWithTooltip(range, (v)=> setVal(v));
+
       wrap.appendChild(row);
     });
   }
@@ -539,32 +593,26 @@ function allocateModsCore(startTotals, targets, minorCap, majorCap, modSlots = N
   const deficit = (k) => Math.max(0, targets[k] - totals[k]);
 
   const applyOne = (size) => {
-    // stop if we've used all allowed slots
     if (mods.length >= modSlots) return false;
-
-    // pick the stat with largest remaining deficit
     let pick = null, bestDef = 0;
     for (const k of STATS){
       const d = deficit(k);
       if (d > bestDef){ bestDef = d; pick = k; }
     }
     if (!pick) return false;
-
-    // IMPORTANT: apply the whole mod (atomic). Only cap against TOTAL_CAP.
     const inc = Math.min(size, TOTAL_CAP - totals[pick]);
     if (inc <= 0) return false;
 
     totals[pick] += inc;
     mods.push({
       stat: pick,
-      size,              // 10 or 5
-      amount: inc,       
+      size,
+      amount: inc,
       label: size === 10 ? capitalize(pick) : `Minor ${capitalize(pick)}`
     });
     return true;
   };
 
-  // majors first, then minors — both respect modSlots
   for (let i = 0; i < (NUM_PIECES - minorCap); i++){
     if (!applyOne(10)) break;
   }
@@ -574,7 +622,6 @@ function allocateModsCore(startTotals, targets, minorCap, majorCap, modSlots = N
 
   return { totals, mods };
 }
-
 
 // augments vector (+5/-5)
 function augmentsToVector(aug){
