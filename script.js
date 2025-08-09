@@ -49,21 +49,23 @@ const summaryRoot = document.getElementById("summary");
 const piecesRoot  = document.getElementById("pieces");
 const totalsRoot  = document.getElementById("totals");
 const minorModsSelect = document.getElementById("minorModsSelect");
-const modsCtrlBox = document.querySelector(".modsCtrl"); // mount panels under here
+const modsCtrlBox = document.querySelector(".modsCtrl");
 const ticks = document.getElementById("ticks");
 const fragTicks = document.getElementById("fragTicks");
 
 // ======= STATE =======
 const state = {
   targets: Object.fromEntries(STATS.map(k => [k, 0])),
-  minorModsCap: Number(minorModsSelect?.value || 0), // # of +5 mods allowed
-  fragments: Object.fromEntries(STATS.map(k => [k, 0])), // −30/+30, applied globally
-  augments: [ 
+  minorModsCap: Number(minorModsSelect?.value || 0),
+  fragments: Object.fromEntries(STATS.map(k => [k, 0])),
+  augments: [
     { plus: "none", minus: "none" },
     { plus: "none", minus: "none" },
     { plus: "none", minus: "none" },
     { plus: "none", minus: "none" },
   ],
+  customExoticEnabled: false,
+  customExotic: Object.fromEntries(STATS.map(k => [k, 0])) // sliders 0..45
 };
 
 // ======= TICK MARKS =======
@@ -87,7 +89,7 @@ function buildTickMarks(){
 }
 function round5(n){ return Math.round(n/5)*5; }
 
-// ======= SLIDERS =======
+// ======= TARGET SLIDERS =======
 function makeSliderRow(statKey, value){
   const row = document.createElement("div");
   row.className = "row";
@@ -149,7 +151,7 @@ function buildSliders(){
   }
 }
 
-// ======= ARMOR AUGMENTATION UI =======
+// ======= ARMOR AUGMENTATION UI (+5 / -5 selectors) =======
 function buildAugmentationUI(){
   let panel = document.getElementById("augPanel");
   if (!panel){
@@ -168,7 +170,6 @@ function buildAugmentationUI(){
     wrap.id = "augWrap";
     panel.appendChild(wrap);
 
-    // put right under the Minor Mods box
     modsCtrlBox.after(panel);
   }
 
@@ -177,29 +178,24 @@ function buildAugmentationUI(){
 
   for (let i = 0; i < 4; i++){
     const row = document.createElement("div");
-    
     row.style.display = "grid";
     row.style.gridTemplateColumns = "90px 1fr 90px 1fr";
     row.style.gap = "10px";
     row.style.alignItems = "center";
     row.style.marginBottom = "10px";
 
-    // +5 (left)
     const plusLabel = document.createElement("div");
     plusLabel.className = "label";
     plusLabel.textContent = `Row ${i+1} +5`;
     const plusSel = makeStatSelect(state.augments[i].plus, (val)=>{
-      state.augments[i].plus = val;
-      render();
+      state.augments[i].plus = val; render();
     });
 
-    // −5 (right)
     const minusLabel = document.createElement("div");
     minusLabel.className = "label";
     minusLabel.textContent = `Row ${i+1} −5`;
     const minusSel = makeStatSelect(state.augments[i].minus, (val)=>{
-      state.augments[i].minus = val;
-      render();
+      state.augments[i].minus = val; render();
     });
 
     row.appendChild(plusLabel);
@@ -210,7 +206,6 @@ function buildAugmentationUI(){
     wrap.appendChild(row);
   }
 }
-
 function makeStatSelect(current, onChange){
   const sel = document.createElement("select");
   const opts = ["none", ...STATS];
@@ -222,7 +217,6 @@ function makeStatSelect(current, onChange){
     sel.appendChild(o);
   }
   sel.addEventListener("change", (e)=> onChange(e.target.value));
-
   sel.style.background = "#0a1324";
   sel.style.border = "1px solid var(--border)";
   sel.style.borderRadius = "6px";
@@ -230,7 +224,6 @@ function makeStatSelect(current, onChange){
   sel.style.padding = "6px 10px";
   return sel;
 }
-
 
 // ======= FRAGMENT UI =======
 function makeFragmentRow(statKey, value){
@@ -315,6 +308,97 @@ function buildFragmentsUI(){
   for (const k of STATS){
     wrap.appendChild(makeFragmentRow(k, state.fragments[k]));
   }
+
+  buildCustomExoticUI(); // mount the override UI right after fragments
+}
+
+// ======= CUSTOM EXOTIC (override) =======
+function buildCustomExoticUI(){
+  let panel = document.getElementById("customExoPanel");
+  if (!panel){
+    panel = document.createElement("div");
+    panel.id = "customExoPanel";
+    panel.className = "slot";
+    const h = document.createElement("h3");
+    h.textContent = "Use Specific Exotic Roll";
+    panel.appendChild(h);
+
+    const togg = document.createElement("label");
+    togg.style.display = "flex";
+    togg.style.alignItems = "center";
+    togg.style.gap = "8px";
+    togg.style.marginBottom = "8px";
+
+    const cb = document.createElement("input");
+    cb.type = "checkbox";
+    cb.checked = state.customExoticEnabled;
+    cb.addEventListener("change", (e)=>{
+      state.customExoticEnabled = e.target.checked;
+      render(); // show/hide sliders immediately
+    });
+
+    const txt = document.createElement("span");
+    txt.className = "subtle";
+    txt.textContent = "Used for Exotic Class Items or old Exotics. (Enter Numbers don't use slider its super laggy.";
+
+    togg.appendChild(cb); togg.appendChild(txt);
+    panel.appendChild(togg);
+
+    const wrap = document.createElement("div");
+    wrap.id = "customExoWrap";
+    panel.appendChild(wrap);
+
+    const fragsPanel = document.getElementById("fragsPanel");
+    fragsPanel.after(panel);
+  }
+
+  const wrap = document.getElementById("customExoWrap");
+  wrap.innerHTML = "";
+  wrap.style.display = state.customExoticEnabled ? "grid" : "none";
+  wrap.style.gap = "10px";
+
+  if (state.customExoticEnabled){
+    STATS.forEach(k => {
+      const row = document.createElement("div");
+      row.style.display = "grid";
+      row.style.gridTemplateColumns = "130px 1fr 60px";
+      row.style.alignItems = "center";
+      row.style.gap = "10px";
+
+      const lab = document.createElement("div");
+      lab.className = "label";
+      lab.textContent = k[0].toUpperCase() + k.slice(1);
+
+      const range = document.createElement("input");
+      range.type = "range";
+      range.min = "0";
+      range.max = "45";    // << per your request
+      range.step = "1";
+      range.value = String(state.customExotic?.[k] ?? 0);
+
+      const val = document.createElement("input");
+      val.type = "number";
+      val.min = "0";
+      val.max = "45";
+      val.step = "1";
+      val.className = "valueInput";
+      val.value = String(state.customExotic?.[k] ?? 0);
+
+      function setVal(n){
+        const v = Math.max(0, Math.min(45, Number(n) || 0));
+        state.customExotic[k] = v;
+        range.value = String(v);
+        val.value = String(v);
+        render();
+      }
+      range.addEventListener("input", e=> setVal(e.target.value));
+      val.addEventListener("change", e=> setVal(e.target.value));
+      val.addEventListener("keydown", e=> { if (e.key === "Enter") setVal(e.currentTarget.value); });
+
+      row.appendChild(lab); row.appendChild(range); row.appendChild(val);
+      wrap.appendChild(row);
+    });
+  }
 }
 
 // ======= BEAM SEARCH =======
@@ -323,13 +407,17 @@ const BEAM_WIDTHS = [800, 1800, 3200];
 function recommendPieces(targets, minorModsCap){
   const majorModsCap = NUM_PIECES - Math.max(0, Math.min(NUM_PIECES, minorModsCap));
 
+  const custom = state.customExoticEnabled
+    ? { enabled:true, vector: { ...state.customExotic }, setName:"Custom Exotic", tertiary:"custom" }
+    : { enabled:false };
+
   for (const BW of BEAM_WIDTHS){
-    const res = runBeam(targets, state.augments, state.fragments, minorModsCap, majorModsCap, BW);
+    const res = runBeam(targets, state.augments, state.fragments, minorModsCap, majorModsCap, BW, custom);
     if (res.feasible || BW === BEAM_WIDTHS[BEAM_WIDTHS.length-1]) return res;
   }
 }
 
-function runBeam(targets, augments, fragments, minorModsCap, majorModsCap, BEAM_WIDTH){
+function runBeam(targets, augments, fragments, minorModsCap, majorModsCap, BEAM_WIDTH, custom){
   let beam = [{
     armor: zeroVec(),
     pieces: [],
@@ -345,6 +433,7 @@ function runBeam(targets, augments, fragments, minorModsCap, majorModsCap, BEAM_
       const slotsLeft = NUM_PIECES - node.step - 1;
       const mustPlaceExotic = (node.exoticsUsed === 0 && slotsLeft === 0);
 
+      // Legendary children
       if (!mustPlaceExotic){
         for (const arch of ARCH.leg){
           const armorAfter = clampAdd(node.armor, arch.vector, ARMOR_CAP);
@@ -360,18 +449,32 @@ function runBeam(targets, augments, fragments, minorModsCap, majorModsCap, BEAM_
         }
       }
 
+      // Exotic children
       if (node.exoticsUsed === 0){
-        for (const arch of ARCH.exo){
-          const armorAfter = clampAdd(node.armor, arch.vector, ARMOR_CAP);
+        if (custom?.enabled){
+          const armorAfter = clampAdd(node.armor, custom.vector, ARMOR_CAP);
           const child = {
             armor: armorAfter,
-            pieces: [...node.pieces, { ...arch }],
+            pieces: [...node.pieces, { type:"Exotic", setName: custom.setName, tertiary: custom.tertiary, vector: custom.vector }],
             exoticsUsed: 1,
             step: node.step + 1,
           };
           const rem = NUM_PIECES - child.step;
           child.score = optimisticResidual(child.armor, targets, augments, fragments, minorModsCap, majorModsCap, rem);
           if (child.score < Infinity) next.push(child);
+        } else {
+          for (const arch of ARCH.exo){
+            const armorAfter = clampAdd(node.armor, arch.vector, ARMOR_CAP);
+            const child = {
+              armor: armorAfter,
+              pieces: [...node.pieces, { ...arch }],
+              exoticsUsed: 1,
+              step: node.step + 1,
+            };
+            const rem = NUM_PIECES - child.step;
+            child.score = optimisticResidual(child.armor, targets, augments, fragments, minorModsCap, majorModsCap, rem);
+            if (child.score < Infinity) next.push(child);
+          }
         }
       }
     }
@@ -408,15 +511,13 @@ function optimisticResidual(currentArmor, targets, augments, fragments, minorCap
   for (const k of STATS){
     optimisticArmor[k] = Math.min(ARMOR_CAP, optimisticArmor[k] + added);
   }
-  // augments then fragments, clamp 0..TOTAL_CAP
-  const withAug = clampAddSigned(optimisticArmor, augmentsToVector(augments), 0, TOTAL_CAP);
-  const withFrags = clampAddSigned(withAug, fragments, 0, TOTAL_CAP);
+  const withAug = clampAddSigned(optimisticArmor, augmentsToVector(state.augments), 0, TOTAL_CAP);
+  const withFrags = clampAddSigned(withAug, state.fragments, 0, TOTAL_CAP);
   const { totals } = allocateModsCore(withFrags, targets, minorCap, majorCap);
 
   for (const k of STATS){
     if (totals[k] < targets[k]) return Infinity;
   }
-  // tie-breaker by raw armor deficit
   let raw = 0;
   for (const k of STATS){
     raw += Math.max(0, targets[k] - currentArmor[k]) ** 2;
@@ -431,13 +532,17 @@ function allocateModsWithAugFrags(armorTotals, targets, augments, fragments, min
   return allocateModsCore(base, targets, minorCap, majorCap);
 }
 
-function allocateModsCore(startTotals, targets, minorCap, majorCap){
+function allocateModsCore(startTotals, targets, minorCap, majorCap, modSlots = NUM_PIECES){
   const totals = { ...startTotals };
   const mods = [];
 
   const deficit = (k) => Math.max(0, targets[k] - totals[k]);
 
   const applyOne = (size) => {
+    // stop if we've used all allowed slots
+    if (mods.length >= modSlots) return false;
+
+    // pick the stat with largest remaining deficit
     let pick = null, bestDef = 0;
     for (const k of STATS){
       const d = deficit(k);
@@ -445,19 +550,21 @@ function allocateModsCore(startTotals, targets, minorCap, majorCap){
     }
     if (!pick) return false;
 
-    const inc = Math.min(size, TOTAL_CAP - totals[pick], deficit(pick));
+    // IMPORTANT: apply the whole mod (atomic). Only cap against TOTAL_CAP.
+    const inc = Math.min(size, TOTAL_CAP - totals[pick]);
     if (inc <= 0) return false;
 
     totals[pick] += inc;
     mods.push({
       stat: pick,
-      size,
-      amount: inc,
+      size,              // 10 or 5
+      amount: inc,       
       label: size === 10 ? capitalize(pick) : `Minor ${capitalize(pick)}`
     });
     return true;
   };
 
+  // majors first, then minors — both respect modSlots
   for (let i = 0; i < (NUM_PIECES - minorCap); i++){
     if (!applyOne(10)) break;
   }
@@ -468,7 +575,8 @@ function allocateModsCore(startTotals, targets, minorCap, majorCap){
   return { totals, mods };
 }
 
-// makes a vector from 4 rows of 
+
+// augments vector (+5/-5)
 function augmentsToVector(aug){
   const v = Object.fromEntries(STATS.map(k => [k, 0]));
   for (const row of aug){
@@ -478,6 +586,7 @@ function augmentsToVector(aug){
   return v;
 }
 
+// attach each mod to one distinct piece for display (≤1 per piece)
 function distributeModsToPieces(pieces, mods){
   const out = pieces.map(p => ({ ...p }));
   let i = 0;
@@ -561,6 +670,9 @@ function checkInputs(targets){
 
 // ======= RENDER =======
 function render(){
+  // ensure custom exotic panel reflects latest toggle/values
+  buildCustomExoticUI();
+
   const feas = checkInputs(state.targets);
   feasBox.textContent = feas.msg;
   feasBox.classList.toggle("bad", !feas.ok);
@@ -578,14 +690,14 @@ function render(){
     return;
   }
 
-  // --- Summary. Show Tertiaries and Mods lines. ---
+  // --- Summary ---
   const perGroup = new Map();
   for (const c of chosen){
     const key = `${c.setName} (${c.type})`;
     if (!perGroup.has(key)) perGroup.set(key, { total: 0, tert: new Map(), mods: new Map() });
     const g = perGroup.get(key);
     g.total += 1;
-    g.tert.set(c.tertiary, (g.tert.get(c.tertiary) || 0) + 1);
+    g.tert.set(c.tertiary ?? "—", (g.tert.get(c.tertiary ?? "—") || 0) + 1);
     if (c.mod){
       const label = c.mod.size === 5 ? `Minor ${capitalize(c.mod.stat)}` : `${capitalize(c.mod.stat)}`;
       g.mods.set(label, (g.mods.get(label) || 0) + 1);
@@ -604,7 +716,7 @@ function render(){
     tline.appendChild(tlabel);
     for (const [tert, n] of info.tert.entries()){
       const pill = document.createElement("span"); pill.className = "statpill";
-      pill.textContent = `${capitalize(tert)} × ${n}`;
+      pill.textContent = `${capitalize(String(tert))} × ${n}`;
       tline.appendChild(pill);
     }
     card.appendChild(tline);
@@ -633,7 +745,8 @@ function render(){
     top.appendChild(title); card.appendChild(top);
 
     const tertLine = document.createElement("div"); tertLine.className = "tertsLine";
-    const chip = document.createElement("span"); chip.className = "label-chip"; chip.textContent = `Tertiary: ${capitalize(c.tertiary)}`;
+    const chip = document.createElement("span"); chip.className = "label-chip";
+    chip.textContent = `Tertiary: ${c.tertiary ? capitalize(c.tertiary) : "—"}`;
     tertLine.appendChild(chip); card.appendChild(tertLine);
 
     if (c.mod){
@@ -655,7 +768,8 @@ function render(){
   const minors = state.minorModsCap;
   const majors = NUM_PIECES - minors;
   const badge2 = document.createElement("span"); badge2.className = "badge";
-  badge2.textContent = `armor cap 150 • final cap ${TOTAL_CAP} • majors ≤ ${majors} • minors ≤ ${minors} • augments + fragments applied`;
+  const customNote = state.customExoticEnabled ? " • custom exotic" : "";
+  badge2.textContent = `armor cap 150 • final cap ${TOTAL_CAP} • majors ≤ ${majors} • minors ≤ ${minors} • augments + fragments applied${customNote}`;
   top2.appendChild(title2); top2.appendChild(badge2); totalsCard.appendChild(top2);
 
   const totalsPills = document.createElement("div"); totalsPills.className = "stats";
