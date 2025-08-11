@@ -358,102 +358,127 @@ function buildFragmentsUI(){
   for (const k of STATS){
     wrap.appendChild(makeFragmentRow(k, state.fragments[k]));
   }
-
-  buildCustomExoticUI(); // mount the override UI right after fragments
 }
 
 // ======= CUSTOM EXOTIC (override) =======
-function buildCustomExoticUI(){
+function createCustomExoticUI(){
   let panel = document.getElementById("customExoPanel");
-  if (!panel){
-    panel = document.createElement("div");
-    panel.id = "customExoPanel";
-    panel.className = "slot";
-    const h = document.createElement("h3");
-    h.textContent = "Use Specific Exotic Roll";
-    panel.appendChild(h);
+  if (panel) return;
 
-    const togg = document.createElement("label");
-    togg.style.display = "flex";
-    togg.style.alignItems = "center";
-    togg.style.gap = "8px";
-    togg.style.marginBottom = "8px";
+  panel = document.createElement("div");
+  panel.id = "customExoPanel";
+  panel.className = "slot";
 
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.checked = state.customExoticEnabled;
-    cb.addEventListener("change", (e)=>{
-      state.customExoticEnabled = e.target.checked;
-      render(); // show/hide sliders immediately
+  const h = document.createElement("h3");
+  h.textContent = "Use Specific Exotic Roll";
+  panel.appendChild(h);
+
+  const togg = document.createElement("label");
+  togg.style.display = "flex";
+  togg.style.alignItems = "center";
+  togg.style.gap = "8px";
+  togg.style.marginBottom = "8px";
+
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.addEventListener("change", (e)=>{
+    state.customExoticEnabled = e.target.checked;
+    updateCustomExoticUI();       
+    render();                    
+  });
+
+  const txt = document.createElement("span");
+  txt.className = "subtle";
+  txt.textContent = "Used for Exotic Class Items or old Exotics.";
+
+  togg.appendChild(cb); togg.appendChild(txt);
+  panel.appendChild(togg);
+
+  const wrap = document.createElement("div");
+  wrap.id = "customExoWrap";
+  wrap.style.display = "grid";
+  wrap.style.gap = "10px";
+  panel.appendChild(wrap);
+
+  const fragsPanel = document.getElementById("fragsPanel");
+  fragsPanel.after(panel);
+
+  // Build rows once
+  STATS.forEach(k => {
+    const row = document.createElement("div");
+    row.style.display = "grid";
+    row.style.gridTemplateColumns = "130px 1fr 60px";
+    row.style.alignItems = "center";
+    row.style.gap = "10px";
+
+    const lab = document.createElement("div");
+    lab.className = "label";
+    lab.textContent = k[0].toUpperCase() + k.slice(1);
+
+    const range = document.createElement("input");
+    range.type = "range"; range.min = "0"; range.max = "45"; range.step = "1";
+    range.dataset.key = k;
+
+    const val = document.createElement("input");
+    val.type = "number"; val.min = "0"; val.max = "45"; val.step = "1";
+    val.className = "valueInput"; val.dataset.key = k;
+
+    // commit-on-release for the range
+    attachRangeWithTooltip(range, (v)=> {
+      const n = Math.max(0, Math.min(45, Number(v)||0));
+      state.customExotic[k] = n;
+      range.value = String(n);
+      val.value = String(n);
+      render(); 
     });
 
-    const txt = document.createElement("span");
-    txt.className = "subtle";
-    txt.textContent = "Used for Exotic Class Items or old Exotics.";
-
-    togg.appendChild(cb); togg.appendChild(txt);
-    panel.appendChild(togg);
-
-    const wrap = document.createElement("div");
-    wrap.id = "customExoWrap";
-    panel.appendChild(wrap);
-
-    const fragsPanel = document.getElementById("fragsPanel");
-    fragsPanel.after(panel);
-  }
-
-  const wrap = document.getElementById("customExoWrap");
-  wrap.innerHTML = "";
-  wrap.style.display = state.customExoticEnabled ? "grid" : "none";
-  wrap.style.gap = "10px";
-
-  if (state.customExoticEnabled){
-    STATS.forEach(k => {
-      const row = document.createElement("div");
-      row.style.display = "grid";
-      row.style.gridTemplateColumns = "130px 1fr 60px";
-      row.style.alignItems = "center";
-      row.style.gap = "10px";
-
-      const lab = document.createElement("div");
-      lab.className = "label";
-      lab.textContent = k[0].toUpperCase() + k.slice(1);
-
-      const range = document.createElement("input");
-      range.type = "range";
-      range.min = "0";
-      range.max = "45";
-      range.step = "1";
-      range.value = String(state.customExotic?.[k] ?? 0);
-
-      const val = document.createElement("input");
-      val.type = "number";
-      val.min = "0";
-      val.max = "45";
-      val.step = "1";
-      val.className = "valueInput";
-      val.value = String(state.customExotic?.[k] ?? 0);
-
-      function setVal(n){
-        const v = Math.max(0, Math.min(45, Number(n) || 0));
-        state.customExotic[k] = v;
-        range.value = String(v);
-        val.value = String(v);
+    // number box commits immediately on change/Enter
+    val.addEventListener("change", (e)=>{
+      const n = Math.max(0, Math.min(45, Number(e.target.value)||0));
+      state.customExotic[k] = n;
+      range.value = String(n);
+      val.value = String(n);
+      render();
+    });
+    val.addEventListener("keydown", (e)=>{
+      if (e.key === "Enter") {
+        const n = Math.max(0, Math.min(45, Number(val.value)||0));
+        state.customExotic[k] = n;
+        range.value = String(n);
+        val.value = String(n);
         render();
       }
-
-      // Build DOM first
-      row.appendChild(lab);
-      row.appendChild(range);
-      row.appendChild(val);
-
-      // Commit on release + tooltip
-      attachRangeWithTooltip(range, (v)=> setVal(v));
-
-      wrap.appendChild(row);
     });
-  }
+
+    row.appendChild(lab); row.appendChild(range); row.appendChild(val);
+    wrap.appendChild(row);
+  });
+
+  updateCustomExoticUI(); 
 }
+
+// --- update each render (no rebuild) ---
+function updateCustomExoticUI(){
+  const panel = document.getElementById("customExoPanel");
+  if (!panel) return;
+  const cb = panel.querySelector('input[type="checkbox"]');
+  const wrap = document.getElementById("customExoWrap");
+  if (cb) cb.checked = state.customExoticEnabled;
+  if (!wrap) return;
+
+  wrap.style.display = state.customExoticEnabled ? "grid" : "none";
+
+  // sync values from state (no new elements)
+  wrap.querySelectorAll('input[type="range"]').forEach(r=>{
+    const k = r.dataset.key;
+    r.value = String(state.customExotic[k] ?? 0);
+  });
+  wrap.querySelectorAll('input[type="number"]').forEach(n=>{
+    const k = n.dataset.key;
+    n.value = String(state.customExotic[k] ?? 0);
+  });
+}
+
 
 // ======= BEAM SEARCH =======
 const BEAM_WIDTHS = [800, 1800, 3200];
@@ -565,8 +590,8 @@ function optimisticResidual(currentArmor, targets, augments, fragments, minorCap
   for (const k of STATS){
     optimisticArmor[k] = Math.min(ARMOR_CAP, optimisticArmor[k] + added);
   }
-  const withAug = clampAddSigned(optimisticArmor, augmentsToVector(state.augments), 0, TOTAL_CAP);
-  const withFrags = clampAddSigned(withAug, state.fragments, 0, TOTAL_CAP);
+  const withAug = clampAddSigned(optimisticArmor, augmentsToVector(augments), 0, TOTAL_CAP);
+  const withFrags = clampAddSigned(withAug, fragments, 0, TOTAL_CAP);
   const { totals } = allocateModsCore(withFrags, targets, minorCap, majorCap);
 
   for (const k of STATS){
@@ -718,7 +743,7 @@ function checkInputs(targets){
 // ======= RENDER =======
 function render(){
   // ensure custom exotic panel reflects latest toggle/values
-  buildCustomExoticUI();
+  updateCustomExoticUI();
 
   const feas = checkInputs(state.targets);
   feasBox.textContent = feas.msg;
@@ -838,5 +863,6 @@ minorModsSelect.addEventListener("change", (e)=>{
 buildTickMarks();
 buildSliders();
 buildAugmentationUI();
-buildFragmentsUI();
+buildFragmentsUI();     
+createCustomExoticUI();    
 render();
