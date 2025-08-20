@@ -5,6 +5,8 @@ const ARMOR_CAP = 150;     // armor (pieces) cap per stat
 const TOTAL_CAP = 200;     // final totals cap per stat (armor + mods + fragments + augments)
 const NUM_PIECES = 5;
 const FRAG_RANGE = 30;     // ±30 per stat
+const FRAG_STEP  = 10;     // step size for fragment sliders
+const PER_PIECE_MAX = 45;
 
 // ======= SETS =======
 const SETS = [
@@ -58,12 +60,14 @@ const state = {
   targets: Object.fromEntries(STATS.map(k => [k, 0])),
   minorModsCap: Number(minorModsSelect?.value || 0),
   fragments: Object.fromEntries(STATS.map(k => [k, 0])),
+
   augments: [
-    { plus: "none", minus: "none" },
-    { plus: "none", minus: "none" },
-    { plus: "none", minus: "none" },
-    { plus: "none", minus: "none" },
+    { mode:"general", plus:"none", minus:"none" },
+    { mode:"general", plus:"none", minus:"none" },
+    { mode:"general", plus:"none", minus:"none" },
+    { mode:"general", plus:"none", minus:"none" },
   ],
+
   customExoticEnabled: false,
   customExotic: Object.fromEntries(STATS.map(k => [k, 0])) // sliders 0..45
 };
@@ -72,7 +76,7 @@ const state = {
 function buildTickMarks(){
   if (ticks){
     ticks.innerHTML = "";
-    for (let v = 0; v <= SLIDER_MAX_UI; v += 5){
+    for (let v = 0; v <= SLIDER_MAX_UI; v += 10){
       const o = document.createElement("option");
       o.value = String(v);
       ticks.appendChild(o);
@@ -80,14 +84,14 @@ function buildTickMarks(){
   }
   if (fragTicks){
     fragTicks.innerHTML = "";
-    for (let v = -FRAG_RANGE; v <= FRAG_RANGE; v += 5){
+    for (let v = -FRAG_RANGE; v <= FRAG_RANGE; v += FRAG_STEP){
       const o = document.createElement("option");
       o.value = String(v);
       fragTicks.appendChild(o);
     }
   }
 }
-function round5(n){ return Math.round(n/5)*5; }
+function roundToStep(n, step){ return Math.round(n/step)*step; }
 
 // ======= Tooltip + commit-on-release helpers =======
 function posThumbTip(input, tip){
@@ -149,9 +153,10 @@ function makeSliderRow(statKey, value){
   input.min = "0";
   input.max = String(SLIDER_MAX_UI);
   input.value = String(value);
-  input.step = "5";
+  input.step = "1";                  // ← step of 1 for main stats
   input.dataset.key = statKey;
-  input.setAttribute("list","ticks");
+  // If you don’t want tick marks at all, remove the datalist hookup:
+  // input.setAttribute("list","ticks");  // ← comment out / remove this line
 
   const valWrap = document.createElement("div");
   valWrap.className = "valueWrap";
@@ -160,7 +165,7 @@ function makeSliderRow(statKey, value){
   valInput.type = "number";
   valInput.min = "0";
   valInput.max = String(SLIDER_MAX_UI);
-  valInput.step = "5";
+  valInput.step = "1";               // ← step of 1 for the number box
   valInput.value = String(value);
 
   const slashMax = document.createElement("div");
@@ -168,7 +173,8 @@ function makeSliderRow(statKey, value){
   slashMax.textContent = `/ ${SLIDER_MAX_UI}`;
 
   function setTargetSafe(v){
-    let n = round5(Math.max(0, Math.min(SLIDER_MAX_UI, Number(v) || 0)));
+    // clamp to 0..SLIDER_MAX_UI and round to integer (no multiples of 5)
+    let n = Math.max(0, Math.min(SLIDER_MAX_UI, Math.round(Number(v) || 0)));
     state.targets[statKey] = n;
     input.value = String(n);
     valInput.value = String(n);
@@ -184,7 +190,7 @@ function makeSliderRow(statKey, value){
   const spacer = document.createElement("div");
   row.appendChild(spacer);
 
-  // Only commit when released; show tooltip while dragging
+  // Commit on release; tooltip while dragging
   attachRangeWithTooltip(input, (v)=> setTargetSafe(v));
 
   valInput.addEventListener("change", (e) => setTargetSafe(e.target.value));
@@ -192,6 +198,7 @@ function makeSliderRow(statKey, value){
 
   return row;
 }
+
 function buildSliders(){
   slidersRoot.innerHTML = "";
   for (const k of STATS){
@@ -211,7 +218,7 @@ function buildAugmentationUI(){
     panel.appendChild(h);
     const hint = document.createElement("p");
     hint.className = "subtle";
-    hint.textContent = "Optional T5 Tuning Mod.";
+    hint.textContent = "Each row can be a General ±5 or a Balanced Tuning.";
     panel.appendChild(hint);
 
     const wrap = document.createElement("div");
@@ -227,25 +234,65 @@ function buildAugmentationUI(){
   for (let i = 0; i < 4; i++){
     const row = document.createElement("div");
     row.style.display = "grid";
-    row.style.gridTemplateColumns = "90px 1fr 90px 1fr";
+    // mode | modeSelect | +5 label/select | -5 label/select
+  row.style.gridTemplateColumns = "80px 110px 30px 110px 30px 110px"; // tighter
     row.style.gap = "10px";
     row.style.alignItems = "center";
     row.style.marginBottom = "10px";
 
+    // Mode label + select
+    const modeLabel = document.createElement("div");
+    modeLabel.className = "label";
+    modeLabel.textContent = `Slot ${i+1}`;
+
+    const modeSel = document.createElement("select");
+    ["general","balanced"].forEach(m=>{
+      const o = document.createElement("option");
+      o.value = m;
+      o.textContent = (m==="general" ? "General ±5" : "Balanced");
+      if (state.augments[i].mode === m) o.selected = true;
+      modeSel.appendChild(o);
+    });
+    // inline style to match your selects
+    modeSel.style.background = "#0a1324";
+    modeSel.style.border = "1px solid var(--border)";
+    modeSel.style.borderRadius = "6px";
+    modeSel.style.color = "var(--ink)";
+    modeSel.style.padding = "6px 10px";
+    modeSel.addEventListener("change", (e)=>{
+      state.augments[i].mode = e.target.value;
+      render();
+    });
+
+    // +5
     const plusLabel = document.createElement("div");
     plusLabel.className = "label";
-    plusLabel.textContent = `Row ${i+1} +5`;
+    plusLabel.textContent = `+5`;
     const plusSel = makeStatSelect(state.augments[i].plus, (val)=>{
       state.augments[i].plus = val; render();
     });
 
+    // −5
     const minusLabel = document.createElement("div");
     minusLabel.className = "label";
-    minusLabel.textContent = `Row ${i+1} −5`;
+    minusLabel.textContent = `−5`;
     const minusSel = makeStatSelect(state.augments[i].minus, (val)=>{
       state.augments[i].minus = val; render();
     });
 
+    // Hide ±5 when Balanced
+    const applyVisibility = ()=>{
+      const isBal = (state.augments[i].mode === "balanced");
+      plusLabel.style.display = isBal ? "none" : "block";
+      plusSel.style.display   = isBal ? "none" : "block";
+      minusLabel.style.display= isBal ? "none" : "block";
+      minusSel.style.display  = isBal ? "none" : "block";
+    };
+    applyVisibility();
+    modeSel.addEventListener("change", applyVisibility);
+
+    row.appendChild(modeLabel);
+    row.appendChild(modeSel);
     row.appendChild(plusLabel);
     row.appendChild(plusSel);
     row.appendChild(minusLabel);
@@ -254,6 +301,8 @@ function buildAugmentationUI(){
     wrap.appendChild(row);
   }
 }
+
+
 function makeStatSelect(current, onChange){
   const sel = document.createElement("select");
   const opts = ["none", ...STATS];
@@ -287,7 +336,7 @@ function makeFragmentRow(statKey, value){
   input.min = String(-FRAG_RANGE);
   input.max = String(FRAG_RANGE);
   input.value = String(value);
-  input.step = "5";
+  input.step = String(FRAG_STEP);;
   input.dataset.key = statKey;
   input.setAttribute("list","fragTicks");
 
@@ -298,7 +347,7 @@ function makeFragmentRow(statKey, value){
   valInput.type = "number";
   valInput.min = String(-FRAG_RANGE);
   valInput.max = String(FRAG_RANGE);
-  valInput.step = "5";
+  valInput.step = String(FRAG_STEP);;
   valInput.value = String(value);
 
   const slashMax = document.createElement("div");
@@ -306,7 +355,7 @@ function makeFragmentRow(statKey, value){
   slashMax.textContent = `/ ±${FRAG_RANGE}`;
 
   function setFragSafe(v){
-    let n = round5(Math.max(-FRAG_RANGE, Math.min(FRAG_RANGE, Number(v) || 0)));
+    let n = roundToStep(Math.max(-FRAG_RANGE, Math.min(FRAG_RANGE, Number(v) || 0)), FRAG_STEP);
     state.fragments[statKey] = n;
     input.value = String(n);
     valInput.value = String(n);
@@ -389,7 +438,7 @@ function createCustomExoticUI(){
 
   const txt = document.createElement("span");
   txt.className = "subtle";
-  txt.textContent = "Used for Exotic Class Items or old Exotics.";
+  txt.innerHTML = "- Used for Exotic Class Items, Non-Max Statted Exotics, or old Exotics.<br>- Enter BASE stats.<br>- If applicable, include artifice slot as part of the base stats.";
 
   togg.appendChild(cb); togg.appendChild(txt);
   panel.appendChild(togg);
@@ -592,7 +641,9 @@ function optimisticResidual(currentArmor, targets, augments, fragments, minorCap
   }
   const withAug = clampAddSigned(optimisticArmor, augmentsToVector(augments), 0, TOTAL_CAP);
   const withFrags = clampAddSigned(withAug, fragments, 0, TOTAL_CAP);
-  const { totals } = allocateModsCore(withFrags, targets, minorCap, majorCap);
+  const withBalanced = applyBalanced(withFrags, countBalancedRows());
+
+  const { totals } = allocateModsCore(withBalanced, targets, minorCap, majorCap);
 
   for (const k of STATS){
     if (totals[k] < targets[k]) return Infinity;
@@ -604,12 +655,15 @@ function optimisticResidual(currentArmor, targets, augments, fragments, minorCap
   return raw * 1e-6;
 }
 
+
 // apply armor tuning
 function allocateModsWithAugFrags(armorTotals, targets, augments, fragments, minorCap, majorCap){
   const baseAug = clampAddSigned(armorTotals, augmentsToVector(augments), 0, TOTAL_CAP);
-  const base = clampAddSigned(baseAug, fragments, 0, TOTAL_CAP);
-  return allocateModsCore(base, targets, minorCap, majorCap);
+  const baseFrags = clampAddSigned(baseAug, fragments, 0, TOTAL_CAP);
+  const baseBalanced = applyBalanced(baseFrags, countBalancedRows());
+  return allocateModsCore(baseBalanced, targets, minorCap, majorCap);
 }
+
 
 function allocateModsCore(startTotals, targets, minorCap, majorCap, modSlots = NUM_PIECES){
   const totals = { ...startTotals };
@@ -652,6 +706,7 @@ function allocateModsCore(startTotals, targets, minorCap, majorCap, modSlots = N
 function augmentsToVector(aug){
   const v = Object.fromEntries(STATS.map(k => [k, 0]));
   for (const row of aug){
+    if (row.mode !== "general") continue; // balanced handled separately
     if (row.plus && row.plus !== "none")  v[row.plus]  += 5;
     if (row.minus && row.minus !== "none") v[row.minus] -= 5;
   }
@@ -680,6 +735,11 @@ function clampAdd(a, b, cap){
   }
   return out;
 }
+
+function addToVec(vec, key, amt){
+  vec[key] = (vec[key] || 0) + amt;
+}
+
 // add with floor and ceiling
 function clampAddSigned(a, b, floor, cap){
   const out = {};
@@ -689,6 +749,7 @@ function clampAddSigned(a, b, floor, cap){
   }
   return out;
 }
+
 function deficitScore(vec, tgt){
   let s = 0;
   for (const k of STATS){
@@ -697,36 +758,446 @@ function deficitScore(vec, tgt){
   }
   return s;
 }
+
 function capitalize(s){ return s[0].toUpperCase() + s.slice(1); }
 
+function countBalancedRows(){
+  return state.augments.filter(r => r.mode === "balanced").length;
+}
+
+// Build a short, human-readable tuning label for display on cards
+function makeTuningLabel(){
+  const parts = [];
+  let balancedCount = 0;
+
+  for (const row of state.augments){
+    if (row.mode === "balanced"){
+      balancedCount++;
+    } else {
+      const plus  = row.plus  && row.plus  !== "none" ? `+5 ${capitalize(row.plus)}`   : "";
+      const minus = row.minus && row.minus !== "none" ? `−5 ${capitalize(row.minus)}`  : "";
+      if (plus || minus){
+        parts.push([plus, minus].filter(Boolean).join(" / "));
+      }
+    }
+  }
+
+  if (balancedCount > 0) parts.unshift(`Balanced × ${balancedCount}`);
+  return parts.length ? parts.join(" • ") : "None";
+}
+
+function buildMainTickMarks(){
+  // Make (or reuse) a datalist specifically for the main target sliders
+  let dl = document.getElementById("mainTicks");
+  if (!dl) {
+    dl = document.createElement("datalist");
+    dl.id = "mainTicks";
+    document.body.appendChild(dl);
+  }
+  dl.innerHTML = "";
+  for (let v = 0; v <= SLIDER_MAX_UI; v += 5){   // ticks every 5 (visual)
+    const o = document.createElement("option");
+    o.value = String(v);
+    dl.appendChild(o);
+  }
+}
+
+
+// Applies +1 to the three lowest stats, once per balanced row
+function applyBalanced(totals, count){
+  if (!count) return totals;
+  const out = { ...totals };
+  for (let i = 0; i < count; i++){
+    const order = [...STATS].sort((a,b)=> (out[a]||0) - (out[b]||0));
+    for (let j = 0; j < 3 && j < order.length; j++){
+      const k = order[j];
+      out[k] = Math.min(TOTAL_CAP, (out[k]||0) + 1);
+    }
+  }
+  return out;
+}
+
+function buildBalancedAdds(chosenPieces){
+  const armorTotals = sumArmorFromPieces(chosenPieces);
+  const generalVec  = augmentsToVector(state.augments);           // only ±5 rows
+  const withAug     = clampAddSigned(armorTotals, generalVec, 0, TOTAL_CAP);
+  const withFrags   = clampAddSigned(withAug, state.fragments, 0, TOTAL_CAP);
+
+  const count       = countBalancedRows();
+  const sim         = applyBalancedWithTrace(withFrags, count);
+
+  const balAdds = zeroVec();
+  for (const picked of sim.trace){
+    for (const stat of picked){
+      balAdds[stat] = (balAdds[stat] || 0) + 1;     // +1 per hit
+    }
+  }
+  return { balAdds, trace: sim.trace };
+}
+
+// Build a chip label for a single tuning row
+function tuningLabelForRow(row){
+  if (!row) return "None";
+  if (row.mode === "balanced") return "Balanced × 1";
+  const parts = [];
+  if (row.plus  && row.plus  !== "none") parts.push(`+5 ${capitalize(row.plus)}`);
+  if (row.minus && row.minus !== "none") parts.push(`−5 ${capitalize(row.minus)}`);
+  return parts.length ? parts.join(" / ") : "None";
+}
+
+// Assign tuning rows round-robin across *Legendary* pieces only.
+// Returns an array of labels (one string per piece index).
+function assignTuningLabelsToPieces(pieces){
+  const labels = Array(pieces.length).fill("None");
+  const legIdxs = [];
+  pieces.forEach((p, i) => { if (p.type !== "Exotic") legIdxs.push(i); });
+  if (legIdxs.length === 0) return labels;
+
+  let cursor = 0;
+  for (const row of state.augments){
+    const lbl = tuningLabelForRow(row);
+    if (lbl === "None") continue;           // skip empty rows
+    const i = legIdxs[cursor % legIdxs.length];
+    labels[i] = (labels[i] === "None") ? lbl : (labels[i] + " • " + lbl);
+    cursor++;
+  }
+  return labels;
+}
+
+
+
+// Like applyBalanced, but also returns which three stats were hit on each pass
+function applyBalancedWithTrace(totals, count){
+  const out = { ...totals };
+  const trace = []; // e.g., [ ["super","class","weapons"], ... ]
+  if (!count) return { totals: out, trace };
+
+  for (let i = 0; i < count; i++){
+    const order = [...STATS].sort((a,b)=> (out[a]||0) - (out[b]||0));
+    const picked = [];
+    for (let j = 0; j < 3 && j < order.length; j++){
+      const k = order[j];
+      out[k] = Math.min(TOTAL_CAP, (out[k]||0) + 1);
+      picked.push(k);
+    }
+    trace.push(picked);
+  }
+  return { totals: out, trace };
+}
+
+// Sum armor from chosen pieces (no mods/tuning)
+function sumArmorFromPieces(pieces){
+  let acc = zeroVec();
+  for (const p of pieces){
+    acc = clampAdd(acc, p.vector || zeroVec(), ARMOR_CAP);
+  }
+  return acc;
+}
+
+// Build a short, human-readable tuning label for display on cards
+function makeTuningLabel(){
+  const parts = [];
+  let balancedCount = 0;
+
+  for (const row of state.augments){
+    if (row.mode === "balanced"){
+      balancedCount++;
+    } else {
+      const plus  = row.plus  && row.plus  !== "none" ? `+5 ${capitalize(row.plus)}`   : "";
+      const minus = row.minus && row.minus !== "none" ? `−5 ${capitalize(row.minus)}`  : "";
+      if (plus || minus){
+        parts.push([plus, minus].filter(Boolean).join(" / "));
+      }
+    }
+  }
+
+  if (balancedCount > 0) parts.unshift(`Balanced × ${balancedCount}`);
+  return parts.length ? parts.join(" • ") : "None";
+}
+// Human label for a single tuning row
+function tuningRowLabel(row){
+  if (!row) return "";
+  if (row.mode === "balanced") return "Balanced × 1";
+  const parts = [];
+  if (row.plus && row.plus !== "none")  parts.push(`+5 ${capitalize(row.plus)}`);
+  if (row.minus && row.minus !== "none") parts.push(`−5 ${capitalize(row.minus)}`);
+  return parts.join(" / ") || "None";
+}
+
+// Build a single-line label for all tuning rows (for summary)
+function makeTuningLabelAllRows(){
+  const labels = [];
+  for (const r of state.augments){
+    if (r.mode === "balanced" || (r.plus && r.plus !== "none") || (r.minus && r.minus !== "none")){
+      labels.push(tuningRowLabel(r));
+    }
+  }
+  return labels.length ? labels.join(" • ") : "None";
+}
+
+// Assign each tuning row to ONE Legendary piece (in order).
+// Returns an array same length as chosen with per-piece {adds, label}
+function assignTuningToPieces(chosen){
+  const perPiece = chosen.map(() => ({ adds: zeroVec(), label: "None" }));
+
+  // indices of Legendary pieces, in display order
+  const legIdxs = [];
+  chosen.forEach((p, i) => { if (p.type === "Legendary") legIdxs.push(i); });
+
+  let cursor = 0; // which Legendary gets the next tuning row
+
+  for (const row of state.augments){
+    // skip no-op rows
+    const isBalanced = row.mode === "balanced";
+    const hasGeneral = row.mode === "general" && (
+      (row.plus && row.plus !== "none") || (row.minus && row.minus !== "none")
+    );
+    if (!isBalanced && !hasGeneral) continue;
+    if (cursor >= legIdxs.length) break;        // no more legendaries to attach to
+
+    const iPiece = legIdxs[cursor++];
+    const piece = chosen[iPiece];
+    const slot = perPiece[iPiece];
+
+    // Start with zero vector and fill the adds for this row
+    const adds = slot.adds;
+
+    if (isBalanced){
+      // compute +1 to the three lowest stats of THIS piece's base vector
+      const order = [...STATS].sort((a,b)=>(piece.vector[a]||0) - (piece.vector[b]||0));
+      for (let j=0; j<3 && j<order.length; j++){
+        adds[order[j]] = (adds[order[j]] || 0) + 1;
+      }
+      slot.label = tuningRowLabel({mode:"balanced"});
+    } else {
+      if (row.plus && row.plus !== "none")  adds[row.plus]  = (adds[row.plus]  || 0) + 5;
+      if (row.minus && row.minus !== "none") adds[row.minus] = (adds[row.minus] || 0) - 5;
+      slot.label = tuningRowLabel(row);
+    }
+  }
+
+  return perPiece;
+}
+
+
+function buildTuningSummaryCard(chosenPieces){
+  const card = document.createElement("div");
+  card.className = "card";
+
+  const top = document.createElement("div");
+  top.className = "top";
+  const title = document.createElement("div");
+  title.textContent = "Tuning Applied";
+  const badge = document.createElement("span");
+  badge.className = "badge";
+  badge.textContent = "applied globally before mods";
+  top.appendChild(title);
+  top.appendChild(badge);
+  card.appendChild(top);
+
+  // --- Reconstruct pre-balanced baseline exactly like the solver ---
+  // 1) raw armor from chosen pieces
+  const armorTotals = sumArmorFromPieces(chosenPieces);
+  // 2) apply general ±5 rows only
+  const generalVec = augmentsToVector(state.augments);
+  const withAug = clampAddSigned(armorTotals, generalVec, 0, TOTAL_CAP);
+  // 3) apply fragments
+  const withFrags = clampAddSigned(withAug, state.fragments, 0, TOTAL_CAP);
+  // 4) simulate balanced rows sequentially and capture the three stats per pass
+  const balancedCount = countBalancedRows();
+  const balSim = applyBalancedWithTrace(withFrags, balancedCount);
+
+  // We need to map each "balanced" row (in the user's 4 rows) to the next entry in the trace.
+  let balIdx = 0;
+
+  // --- Per-row printout matching the user's selections ---
+  state.augments.forEach((row, idx) => {
+    const line = document.createElement("div");
+    line.className = "modsLine";
+
+    const label = document.createElement("span");
+    label.className = "label-chip";
+    label.textContent = `Slot ${idx+1}:`;
+    line.appendChild(label);
+
+    if (row.mode === "balanced"){
+      // Show exactly which three stats were hit on THIS pass
+      const picked = balSim.trace[balIdx] || [];
+      balIdx++;
+
+      const chip = document.createElement("span");
+      chip.className = "statpill";
+      if (picked.length === 3){
+        chip.textContent = `Balanced → +1 ${capitalize(picked[0])}, +1 ${capitalize(picked[1])}, +1 ${capitalize(picked[2])}`;
+      } else if (picked.length > 0){
+        // Edge case: fewer than 3 stats available (shouldn't really happen)
+        chip.textContent = `Balanced → ` + picked.map(s => `+1 ${capitalize(s)}`).join(", ");
+      } else {
+        chip.textContent = "Balanced (no eligible stats?)";
+      }
+      line.appendChild(chip);
+    } else {
+      // General ±5 row
+      const plus = document.createElement("span");
+      plus.className = "statpill";
+      plus.textContent = row.plus !== "none" ? `+5 ${capitalize(row.plus)}` : "—";
+
+      const minus = document.createElement("span");
+      minus.className = "statpill";
+      minus.textContent = row.minus !== "none" ? `−5 ${capitalize(row.minus)}` : "—";
+
+      line.appendChild(plus);
+      line.appendChild(minus);
+    }
+
+    card.appendChild(line);
+  });
+
+  // --- Net effect summary ---
+  const totalsLine = document.createElement("div");
+  totalsLine.className = "modsLine";
+
+  const totalsLabel = document.createElement("span");
+  totalsLabel.className = "label-chip";
+  totalsLabel.textContent = "Net:";
+  totalsLine.appendChild(totalsLabel);
+
+  // General ±5 net
+  STATS.forEach(k => {
+    const v = generalVec[k] || 0;
+    if (v !== 0){
+      const pill = document.createElement("span");
+      pill.className = "statpill";
+      pill.textContent = (v > 0 ? `+${v}` : `${v}`) + ` ${capitalize(k)}`;
+      totalsLine.appendChild(pill);
+    }
+  });
+
+  // Balanced total count (already detailed per-row above)
+  if (balancedCount > 0){
+    const bal = document.createElement("span");
+    bal.className = "statpill";
+    bal.textContent = `Balanced × ${balancedCount}`;
+    totalsLine.appendChild(bal);
+  }
+
+  card.appendChild(totalsLine);
+  return card;
+}
+
+
 // ======= BARS / UI =======
-function makeBars(vec, perPieceMax=40){
+// Bars that visualize base vs per-piece tuning+mods (no fragments)
+// Blue = remaining base after penalties consume some base
+// Green = positive adds from tuning/mods
+// Red   = penalties from tuning/mods (drawn on top of the right end of the base)
+function makeBarsWithAdjustments(baseVec, addsVec, perPieceMax = PER_PIECE_MAX){
   const wrap = document.createElement("div");
   wrap.className = "bars";
-  let total = 0;
+
+  // quick helper to style bars consistently
+  const mk = (w, bg, extra={}) => {
+    const d = document.createElement("div");
+    d.style.width = Math.max(0, Math.min(100, w)) + "%";
+    d.style.background = bg;
+    d.style.borderRadius = "6px";
+    d.style.height = "8px";
+    Object.assign(d.style, extra);
+    return d;
+  };
+
+  let totalFinal = 0;
+
   for (const k of STATS){
     const row = document.createElement("div"); row.className = "barRow";
-    const lab = document.createElement("div"); lab.className = "barLabel"; lab.textContent = capitalize(k);
-    const track = document.createElement("div"); track.className = "track";
-    const fill = document.createElement("div"); fill.className = "fill";
-    const v = vec[k] || 0;
-    const pct = Math.max(0, Math.min(100, (v / perPieceMax) * 100));
-    fill.style.width = pct + "%";
-    track.appendChild(fill);
-    const val = document.createElement("div"); val.className = "barVal"; val.textContent = `+${v}`;
-    row.appendChild(lab); row.appendChild(track); row.appendChild(val); wrap.appendChild(row);
-    total += v;
+
+    const lab = document.createElement("div");
+    lab.className = "barLabel";
+    lab.textContent = capitalize(k);
+
+    // track
+    const track = document.createElement("div");
+    track.className = "track";
+    track.style.position = "relative";
+    track.style.overflow = "hidden";
+
+    // inner flex for blue+green
+    const inner = document.createElement("div");
+    inner.style.display = "flex";
+    inner.style.gap = "0px";
+    inner.style.height = "8px";
+    inner.style.borderRadius = "6px";
+    inner.style.position = "relative";
+
+    const base   = Math.max(0, baseVec[k] || 0);
+    const adds   = Number(addsVec[k] || 0);
+    const posAdd = Math.max(0, adds);
+    const negAbs = Math.max(0, -adds);
+
+    // amount of base eaten by negative tuning/mods
+    const baseEaten = Math.min(base, negAbs);
+
+    // what remains blue, what becomes red, what is green
+    const blueVal  = Math.max(0, base - baseEaten);
+    const redVal   = baseEaten;
+    const greenVal = Math.max(0, posAdd);
+
+    // final number to show
+    const finalVal = Math.max(0, Math.min(perPieceMax, blueVal + greenVal));
+    totalFinal += finalVal;
+
+    // percentages for the track
+    const bluePct  = (blueVal  / perPieceMax) * 100;
+    const greenPct = (greenVal / perPieceMax) * 100;
+    const redPct   = (redVal   / perPieceMax) * 100;
+
+    // colors (match your theme)
+    const BLUE  = "var(--accent, #3b82f6)";
+    const GREEN = "#22c55e";
+    const RED   = "#ef4444";
+
+    // build bars: blue then green (side-by-side)
+    inner.appendChild(mk(bluePct, BLUE));
+    inner.appendChild(mk(greenPct, GREEN));
+
+    // red overlay sits at the end of the blue portion
+    const negBar = mk(redPct, RED, {
+      position: "absolute",
+      left: bluePct + "%",   // start where blue ends
+      top: "0", bottom: "0",
+      opacity: "0.9",
+    });
+
+    track.appendChild(inner);
+    track.appendChild(negBar);
+
+    const val = document.createElement("div");
+    val.className = "barVal";
+    val.textContent = String(finalVal); // show final value only
+
+    row.appendChild(lab);
+    row.appendChild(track);
+    row.appendChild(val);
+    wrap.appendChild(row);
   }
+
+  // total row
   const tRow = document.createElement("div"); tRow.className = "barRow";
   const tLab = document.createElement("div"); tLab.className = "barLabel"; tLab.textContent = "Total";
   const tTrack = document.createElement("div"); tTrack.className = "track";
-  const tFill = document.createElement("div"); tFill.className = "fill";
-  tFill.style.width = Math.min(100, (total/(perPieceMax*3))*100) + "%";
+
+  const tFill = document.createElement("div");
+  tFill.className = "fill";
+  tFill.style.width = Math.min(100, (totalFinal/(perPieceMax*3))*100) + "%";
   tTrack.appendChild(tFill);
-  const tVal = document.createElement("div"); tVal.className = "barVal"; tVal.textContent = total.toString();
+
+  const tVal = document.createElement("div"); tVal.className = "barVal"; tVal.textContent = String(totalFinal);
   tRow.appendChild(tLab); tRow.appendChild(tTrack); tRow.appendChild(tVal); wrap.appendChild(tRow);
+
   return wrap;
 }
+
+
 
 // ======= INPUT CHECK =======
 function checkInputs(targets){
@@ -762,20 +1233,28 @@ function render(){
     return;
   }
 
-  // --- Summary ---
+  // Assign tuning to *Legendary* pieces (adds + label per piece)
+  const perPieceTuning = assignTuningToPieces(chosen);
+
+  // --- Summary by group ---
   const perGroup = new Map();
-  for (const c of chosen){
+  chosen.forEach((c, idx) => {
     const key = `${c.setName} (${c.type})`;
-    if (!perGroup.has(key)) perGroup.set(key, { total: 0, tert: new Map(), mods: new Map() });
+    if (!perGroup.has(key)) perGroup.set(key, { total: 0, tert: new Map(), mods: new Map(), tunings: [] });
     const g = perGroup.get(key);
     g.total += 1;
     g.tert.set(c.tertiary ?? "—", (g.tert.get(c.tertiary ?? "—") || 0) + 1);
+
     if (c.mod){
       const label = c.mod.size === 5 ? `Minor ${capitalize(c.mod.stat)}` : `${capitalize(c.mod.stat)}`;
       g.mods.set(label, (g.mods.get(label) || 0) + 1);
     }
-  }
 
+    // per-piece tuning label (from assignment above)
+    g.tunings.push(perPieceTuning[idx]?.label || "None");
+  });
+
+  // Render Summary cards
   for (const [groupName, info] of perGroup.entries()){
     const card = document.createElement("div"); card.className = "card";
 
@@ -783,6 +1262,7 @@ function render(){
     const title = document.createElement("div"); title.textContent = `${groupName} × ${info.total}`;
     top.appendChild(title); card.appendChild(top);
 
+    // tertiaries
     const tline = document.createElement("div"); tline.className = "tertsLine";
     const tlabel = document.createElement("span"); tlabel.className = "label-chip"; tlabel.textContent = "Tertiaries:";
     tline.appendChild(tlabel);
@@ -793,6 +1273,7 @@ function render(){
     }
     card.appendChild(tline);
 
+    // mods
     if (info.mods.size > 0){
       const mline = document.createElement("div"); mline.className = "modsLine";
       const mlabel = document.createElement("span"); mlabel.className = "label-chip"; mlabel.textContent = "Mods:";
@@ -804,6 +1285,17 @@ function render(){
       }
       card.appendChild(mline);
     }
+
+    // tuning chips — one per piece in this group
+    const tuneLine = document.createElement("div"); tuneLine.className = "modsLine";
+    const tuneLabel = document.createElement("span"); tuneLabel.className = "label-chip"; tuneLabel.textContent = "Tuning:";
+    tuneLine.appendChild(tuneLabel);
+    info.tunings.forEach(lbl => {
+      const pill = document.createElement("span"); pill.className = "statpill";
+      pill.textContent = lbl === "None" ? "—" : lbl;
+      tuneLine.appendChild(pill);
+    });
+    card.appendChild(tuneLine);
 
     summaryRoot.appendChild(card);
   }
@@ -819,7 +1311,8 @@ function render(){
     const tertLine = document.createElement("div"); tertLine.className = "tertsLine";
     const chip = document.createElement("span"); chip.className = "label-chip";
     chip.textContent = `Tertiary: ${c.tertiary ? capitalize(c.tertiary) : "—"}`;
-    tertLine.appendChild(chip); card.appendChild(tertLine);
+    tertLine.appendChild(chip); 
+    card.appendChild(tertLine);
 
     if (c.mod){
       const modLine = document.createElement("div"); modLine.className = "modsLine";
@@ -828,10 +1321,27 @@ function render(){
       modLine.appendChild(mlabel); modLine.appendChild(modPill); card.appendChild(modLine);
     }
 
-    const dispVec = c.mod ? clampAdd(c.vector, { [c.mod.stat]: c.mod.amount }, TOTAL_CAP) : c.vector;
-    card.appendChild(makeBars(dispVec, 40));
+    // Piece-specific tuning label
+    const tuningLine = document.createElement("div"); tuningLine.className = "modsLine";
+    const tuningLabel = document.createElement("span"); tuningLabel.className = "label-chip"; tuningLabel.textContent = "Tuning:";
+    const tuningChip = document.createElement("span"); tuningChip.className = "statpill";
+    tuningChip.textContent = perPieceTuning[idx]?.label || "None";
+    tuningLine.appendChild(tuningLabel); tuningLine.appendChild(tuningChip);
+    card.appendChild(tuningLine);
+
+    // Build adds (tuning + mod) for the overlay visualization
+    const adds = { ...perPieceTuning[idx]?.adds };     // tuning adds/penalties
+    if (c.mod){                                        // add this piece's mod
+      addToVec(adds, c.mod.stat, c.mod.amount);
+    }
+
+    // Visualize base vs adds using the new function
+    card.appendChild(makeBarsWithAdjustments(c.vector, adds, PER_PIECE_MAX));
     piecesRoot.appendChild(card);
   });
+
+  // --- Global Tuning Summary card
+  piecesRoot.appendChild(buildTuningSummaryCard(chosen));
 
   // --- Totals vs Target ---
   const totalsCard = document.createElement("div"); totalsCard.className = "card";
