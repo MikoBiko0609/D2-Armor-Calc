@@ -2,3 +2,4 @@ User-agent: *
 Allow: /
 
 Sitemap: https://d2-armor-calc-lac.vercel.app/sitemap.xml
+Sitemap: https://d2-armor-calc-lac.vercel.app/sitemap.txt
