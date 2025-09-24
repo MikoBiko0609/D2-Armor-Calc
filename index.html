@@ -1,86 +1,92 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>D2 Armor Calc — Destiny 2 Armor Calculator</title>
-  <meta name="description" content="Free Destiny 2 Armor Calculator (D2 Armor Calc). Optimize stats, mods, and builds easily with this community tool." />
-  <link rel="canonical" href="https://d2-armor-calc-lac.vercel.app/" />
-  <meta name="google-site-verification" content="IYGpkCeu-gQTTykxSil6Y0D7kSJgeIQLoQSXld5oINo" />
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>D2 Armor Calc — Destiny 2 Armor Calculator</title>
+        <meta name="description" content="Free Destiny 2 Armor Calculator (D2 Armor Calc). Optimize stats, mods, and builds easily with this community tool." />
+        <link rel="canonical" href="https://d2-armor-calc-lac.vercel.app/" />
+        <meta name="google-site-verification" content="IYGpkCeu-gQTTykxSil6Y0D7kSJgeIQLoQSXld5oINo" />
 
-  <!-- Open Graph for social previews -->
-  <meta property="og:title" content="D2 Armor Calc — Destiny 2 Armor Calculator" />
-  <meta property="og:description" content="Free D2 Armor Calc for Destiny 2. Optimize stats, mods, and armor setups fast." />
-  <meta property="og:type" content="website" />
-  <meta property="og:url" content="https://d2-armor-calc-lac.vercel.app/" />
-  <meta property="og:image" content="https://d2-armor-calc-lac.vercel.app/og-image.png" />
+        <!-- open graph for social previews -->
+        <meta property="og:title" content="D2 Armor Calc — Destiny 2 Armor Calculator" />
+        <meta property="og:description" content="Free D2 Armor Calc for Destiny 2. Optimize stats, mods, and armor setups fast." />
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://d2-armor-calc-lac.vercel.app/" />
+        <meta property="og:image" content="https://d2-armor-calc-lac.vercel.app/og-image.png" />
 
-  <!-- Twitter Card -->
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="D2 Armor Calc — Destiny 2 Armor Calculator" />
-  <meta name="twitter:description" content="Free Destiny 2 Armor Calculator. Optimize stats, mods, and builds quickly." />
-  <meta name="twitter:image" content="https://d2-armor-calc-lac.vercel.app/og-image.png" />
+        <link rel="stylesheet" href="style.css" />
+    </head>
 
-  <link rel="stylesheet" href="style.css"/>
-</head>
-<body>
-  <header class="container">
-    <h1>Destiny 2 Armor Calculator (D2 Armor Calc)</h1>
-    <p class="subtle">
-      Targets are minimums. Assumes 1 T2 Exotic. Assumes all T5 Legendary armor OR Max Stat T4 armor. Can adjust for Fragments, Tuning Mods, and Minor Mods.
-    </p>
-  </header>
+    <body>
+        <header class="container">
+            <h1>Destiny 2 Armor Calculator (D2 Armor Calc)</h1>
+            <p class="subtle">
+                Targets are minimums. Assumes 1 T2 Exotic. Assumes all T5
+                Legendary armor OR Max Stat T4 armor. Can adjust for Fragments,
+                Tuning Mods, and Minor Mods.
+            </p>
+        </header>
 
-  <main class="container grid">
-    <section class="panel">
-      <h2>Target Stats</h2>
-      <div id="feasBox" class="feasBox subtle"></div>
+        <main class="container grid">
+            <section class="panel">
+                <h2>Target Stats</h2>
 
-      <div id="sliders" class="sliders"></div>
+                <div id="feasBox" class="feasBox subtle"></div>
+                <div id="sliders" class="sliders"></div>
 
-      <!-- Minor-mod selector -->
-      <div class="modsCtrl">
-        <label for="minorModsSelect">Minor Stat Mods:</label>
-        <select id="minorModsSelect">
-          <option value="0">0x</option>
-          <option value="1">1x</option>
-          <option value="2">2x</option>
-          <option value="3">3x</option>
-          <option value="4">4x</option>
-          <option value="5">5x</option>
-        </select>
-        <span class="subtle hint">Replaces Major Mods with Minor Mods.</span>
-      </div>
+                <!-- minor-mod selector -->
+                <div class="modsCtrl">
+                    <label for="minorModsSelect">Minor Stat Mods:</label>
+                    <select id="minorModsSelect">
+                        <option value="0">0x</option>
+                        <option value="1">1x</option>
+                        <option value="2">2x</option>
+                        <option value="3">3x</option>
+                        <option value="4">4x</option>
+                        <option value="5">5x</option>
+                    </select>
 
-      <!-- ticks for target sliders (every 5) -->
-      <datalist id="ticks"></datalist>
-      <!-- ticks for fragment sliders (every 5 from -30 to +30) -->
-      <datalist id="fragTicks"></datalist>
-    </section>
+                    <span class="subtle hint"
+                        >Replaces Major Mods with Minor Mods.</span
+                    >
+                </div>
 
-    <section class="panel">
-      <h2>Recommended Composition</h2>
-      <p class="subtle">- Armor comp needed for stats.<br>- Tertiaries, Minor Mods, Major Mods, and ±5 Tuning Mods can be placed on different armor types when applicable.<br>- Balanced Tuning Mods must be placed on listed armor type.</p>
+                <!-- ticks for target sliders (every 5) -->
+                <datalist id="ticks"></datalist>
 
-      <div class="slot">
-        <h3>Summary</h3>
-        <div id="summary" class="card-list"></div>
-      </div>
+                <!-- ticks for fragment sliders (every 5 from -30 to +30) -->
+                <datalist id="fragTicks"></datalist>
+            </section>
 
-      <div class="slot">
-        <h3>Per-Piece Details (5 total)</h3>
-        <div id="pieces" class="card-list"></div>
-      </div>
+            <section class="panel">
+                <h2>Recommended Composition</h2>
+                <p class="subtle">
+                    - Armor comp needed for stats.<br />- Tertiaries, Minor
+                    Mods, Major Mods, and ±5 Tuning Mods can be placed on
+                    different armor types when applicable.<br />- Balanced
+                    Tuning Mods must be placed on listed armor type.
+                </p>
 
-      <div class="slot">
-        <h3>Total vs Target</h3>
-        <div id="totals" class="card-list"></div>
-      </div>
-    </section>
-  </main>
+                <div class="slot">
+                    <h3>Summary</h3>
+                    <div id="summary" class="card-list"></div>
+                </div>
 
-  <footer class="container footer"></footer>
+                <div class="slot">
+                    <h3>Per-Piece Details (5 total)</h3>
+                    <div id="pieces" class="card-list"></div>
+                </div>
 
-  <script src="script.js"></script>
-</body>
+                <div class="slot">
+                    <h3>Total vs Target</h3>
+                    <div id="totals" class="card-list"></div>
+                </div>
+            </section>
+        </main>
+
+        <footer class="container footer"></footer>
+
+        <script type="module" src="./js/app.js"></script>
+    </body>
 </html>
