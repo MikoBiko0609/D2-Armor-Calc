@@ -582,7 +582,7 @@ export function createCustomExoticUI() {
         "- Used for Exotic Class Items, Non-Max Statted Exotics, or old Exotics.";
     const p2 = document.createElement("p");
     p2.className = "subtle";
-    p2.textContent = "- Enter BASE stats.";
+    p2.textContent = "- Enter BASE MASTERWORKED stats.";
     const p3 = document.createElement("p");
     p3.className = "subtle";
     p3.textContent =
