@@ -9,6 +9,10 @@ import {
     minorModsSelect,
 } from "./ui.parts.js";import { render } from "./ui.render.js";
 
+import { inject } from "@vercel/analytics"
+
+inject();
+
 buildTickMarks();
 buildSliders();
 buildNewArchetypeToggleUI();
