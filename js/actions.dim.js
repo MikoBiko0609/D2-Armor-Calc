@@ -12,9 +12,9 @@ export function buildDimQuery(piece, opts = {}) {
         opts.isCustomExoticActive ??
         !!(typeof window !== "undefined" && window?.state?.customExoticEnabled);
 
-    // EXOTIC RULES
-    if (type === "exotic") {
-        return customActive ? `(is:exotic)` : `(${base} is:exotic)`;
+    // CUSTOM EXOTIC RULE
+    if (customActive && piece?.setName === "Custom Exotic") {
+        return `is:exotic`;
     }
 
     // LEGENDARY RULES 
