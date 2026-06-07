@@ -14,6 +14,9 @@ export const state = {
     customExotic: Object.fromEntries(STATS.map((k) => [k, 0])),
     autoAssumeMods: true,
     leastFavStat: "none",
+    customExoticHasTuning: false,
+    customExoticHasArtifice: false,
+    enableNewArchetypes: true,
 };
 
 export const setMinorModsCap = (n) =>

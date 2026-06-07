@@ -535,7 +535,6 @@ export function buildAugmentationUI() {
 
 // --------- CUSTOM EXOTIC (override) ----------
 export function createCustomExoticUI() {
-    // use the same toggle styles as the Augmentation switch
     if (typeof ensureToggleStyles === "function") ensureToggleStyles();
 
     let panel = document.getElementById("customExoPanel");
@@ -549,49 +548,69 @@ export function createCustomExoticUI() {
     h.textContent = "Use Specific Exotic Roll";
     panel.appendChild(h);
 
-    // --- pretty toggle row (matches Augmentation) ---
-    const toggleRow = document.createElement("div");
-    toggleRow.style.display = "flex";
-    toggleRow.style.alignItems = "center";
-    toggleRow.style.gap = "10px";
-    toggleRow.style.marginBottom = "8px";
+    const makeToggle = (text, checked) => {
+        const row = document.createElement("div");
+        row.style.display = "flex";
+        row.style.alignItems = "center";
+        row.style.gap = "10px";
+        row.style.marginBottom = "8px";
 
-    const toggleLabel = document.createElement("label");
-    toggleLabel.className = "d2ac-switch";
+        const label = document.createElement("label");
+        label.className = "d2ac-switch";
 
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.checked = !!state.customExoticEnabled;
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.checked = !!checked;
 
-    const slider = document.createElement("span");
-    slider.className = "d2ac-slider";
+        const slider = document.createElement("span");
+        slider.className = "d2ac-slider";
 
-    const toggleText = document.createElement("span");
-    toggleText.textContent = "Enable";
+        const labelText = document.createElement("span");
+        labelText.textContent = text;
 
-    toggleLabel.appendChild(cb);
-    toggleLabel.appendChild(slider);
-    toggleLabel.appendChild(toggleText);
-    toggleRow.appendChild(toggleLabel);
-    panel.appendChild(toggleRow);
+        label.appendChild(input);
+        label.appendChild(slider);
+        label.appendChild(labelText);
+        row.appendChild(label);
 
-    // helper text (unchanged, just not inside the label)
+        return { row, input };
+    };
+
+    const enableToggle = makeToggle("Enable", state.customExoticEnabled);
+    const tuningToggle = makeToggle(
+        "Has Tuning Mod (-5/+5)",
+        state.customExoticHasTuning,
+    );
+    const artificeToggle = makeToggle(
+        "Has Artifice Mod (+3)",
+        state.customExoticHasArtifice,
+    );
+
+    tuningToggle.input.id = "customExoticHasTuning";
+    artificeToggle.input.id = "customExoticHasArtifice";
+
+    panel.appendChild(enableToggle.row);
+    panel.appendChild(tuningToggle.row);
+    panel.appendChild(artificeToggle.row);
+
     const p1 = document.createElement("p");
     p1.className = "subtle";
     p1.textContent =
         "- Used for Exotic Class Items, Non-Max Statted Exotics, or old Exotics.";
+
     const p2 = document.createElement("p");
     p2.className = "subtle";
     p2.textContent = "- Enter BASE MASTERWORKED stats.";
+
     const p3 = document.createElement("p");
     p3.className = "subtle";
     p3.textContent =
-        "- If applicable, include artifice slot as part of the base stats.";
+        "- Use the toggles above if the roll has a tuning slot or artifice slot.";
+
     panel.appendChild(p1);
     panel.appendChild(p2);
     panel.appendChild(p3);
 
-    // inputs wrapper
     const wrap = document.createElement("div");
     wrap.id = "customExoWrap";
     wrap.style.display = "grid";
@@ -601,20 +620,19 @@ export function createCustomExoticUI() {
     const fragsPanel = document.getElementById("fragsPanel");
     fragsPanel.after(panel);
 
-    // ensure state + zero defaults
     state.customExotic = state.customExotic || {};
+
     for (const k of STATS) {
-        if (typeof state.customExotic[k] !== "number")
+        if (typeof state.customExotic[k] !== "number") {
             state.customExotic[k] = 0;
+        }
     }
 
-    // only re-solve when enabled
     const maybeRender = () => {
         if (!state.customExoticEnabled) return;
         import("./ui.render.js").then((m) => m.render());
     };
 
-    // build rows once (respect current state values)
     STATS.forEach((k) => {
         const row = document.createElement("div");
         row.style.display = "grid";
@@ -643,7 +661,6 @@ export function createCustomExoticUI() {
         val.dataset.key = k;
         val.value = String(state.customExotic[k]);
 
-        // commit-on-release for the range (guarded render)
         attachRangeWithTooltip(range, (v) => {
             const n = Math.max(0, Math.min(45, Number(v) || 0));
             state.customExotic[k] = n;
@@ -652,7 +669,6 @@ export function createCustomExoticUI() {
             maybeRender();
         });
 
-        // number box (guarded render)
         const commitNum = (raw) => {
             const n = Math.max(0, Math.min(45, Number(raw) || 0));
             state.customExotic[k] = n;
@@ -660,6 +676,7 @@ export function createCustomExoticUI() {
             val.value = String(n);
             maybeRender();
         };
+
         val.addEventListener("change", (e) => commitNum(e.target.value));
         val.addEventListener("keydown", (e) => {
             if (e.key === "Enter") commitNum(val.value);
@@ -671,11 +688,38 @@ export function createCustomExoticUI() {
         wrap.appendChild(row);
     });
 
-    // toggle handler (always re-solve on toggle)
-    cb.addEventListener("change", (e) => {
+    enableToggle.input.addEventListener("change", (e) => {
         state.customExoticEnabled = !!e.target.checked;
-        updateCustomExoticUI(); // keep any dependent visuals in sync
+
+        if (!state.customExoticEnabled) {
+            state.customExoticHasTuning = false;
+            state.customExoticHasArtifice = false;
+        }
+
+        updateCustomExoticUI();
         import("./ui.render.js").then((m) => m.render());
+    });
+
+    tuningToggle.input.addEventListener("change", (e) => {
+        state.customExoticHasTuning = !!e.target.checked;
+
+        if (state.customExoticHasTuning) {
+            state.customExoticHasArtifice = false;
+        }
+
+        updateCustomExoticUI();
+        maybeRender();
+    });
+
+    artificeToggle.input.addEventListener("change", (e) => {
+        state.customExoticHasArtifice = !!e.target.checked;
+
+        if (state.customExoticHasArtifice) {
+            state.customExoticHasTuning = false;
+        }
+
+        updateCustomExoticUI();
+        maybeRender();
     });
 
     updateCustomExoticUI();
@@ -683,56 +727,104 @@ export function createCustomExoticUI() {
 
 // --- update each render (no rebuild) ---
 export function updateCustomExoticUI() {
-    // reuse the same styles as the tuning switch if you have them
     if (typeof ensureToggleStyles === "function") ensureToggleStyles();
 
-    // Find the slot by its header
-    const slot = Array.from(document.querySelectorAll(".slot")).find((s) =>
-        s
-            .querySelector("h3")
-            ?.textContent?.toLowerCase()
-            .includes("specific exotic"),
-    );
+    const slot = document.getElementById("customExoPanel");
     if (!slot) return;
 
-    // do NOT change existing visuals here—only ensure the toggle keeps state in sync
-    const rawCb = slot.querySelector('input[type="checkbox"]');
-    if (rawCb) {
-        rawCb.checked = !!state.customExoticEnabled;
-        // keep in sync if someone flips it outside our event
-        rawCb.onchange = (e) => {
-            state.customExoticEnabled = !!e.target.checked;
-            import("./ui.render.js").then((m) => m.render());
-        };
+    const enableCb = slot.querySelector(
+        '.d2ac-switch input[type="checkbox"]:not(#customExoticHasTuning):not(#customExoticHasArtifice)',
+    );
+    const tuningCb = slot.querySelector("#customExoticHasTuning");
+    const artificeCb = slot.querySelector("#customExoticHasArtifice");
+
+    if (enableCb) enableCb.checked = !!state.customExoticEnabled;
+
+    if (tuningCb) {
+        tuningCb.checked = !!state.customExoticHasTuning;
+        tuningCb.disabled = !state.customExoticEnabled;
+        tuningCb.closest("label").style.opacity = state.customExoticEnabled
+            ? "1"
+            : "0.45";
+        tuningCb.closest("label").style.pointerEvents = state.customExoticEnabled
+            ? "auto"
+            : "none";
     }
 
-    // One-time initialize inputs to current state without triggering renders.
+    if (artificeCb) {
+        artificeCb.checked = !!state.customExoticHasArtifice;
+        artificeCb.disabled = !state.customExoticEnabled;
+        artificeCb.closest("label").style.opacity = state.customExoticEnabled
+            ? "1"
+            : "0.45";
+        artificeCb.closest("label").style.pointerEvents = state.customExoticEnabled
+            ? "auto"
+            : "none";
+    }
+
     if (!slot.dataset.cxInitSliders) {
-        // make sure state has zeros
         state.customExotic = state.customExotic || {};
+
         for (const k of STATS) {
-            if (typeof state.customExotic[k] !== "number")
+            if (typeof state.customExotic[k] !== "number") {
                 state.customExotic[k] = 0;
+            }
         }
 
-        // set values directly; do NOT dispatch events here
         slot.querySelectorAll('input[type="range"]').forEach((r) => {
             const key = r.dataset.key;
-            if (key && key in state.customExotic)
+
+            if (key && key in state.customExotic) {
                 r.value = String(state.customExotic[key]);
-            else r.value = "0";
+            }
         });
-        slot.querySelectorAll('input[type="number"].valueInput').forEach(
-            (n) => {
-                const key = n.dataset.key;
-                if (key && key in state.customExotic)
-                    n.value = String(state.customExotic[key]);
-                else n.value = "0";
-            },
-        );
+
+        slot.querySelectorAll('input[type="number"].valueInput').forEach((n) => {
+            const key = n.dataset.key;
+
+            if (key && key in state.customExotic) {
+                n.value = String(state.customExotic[key]);
+            }
+        });
 
         slot.dataset.cxInitSliders = "1";
     }
+}
+
+export function buildNewArchetypeToggleUI() {
+    if (typeof ensureToggleStyles === "function") ensureToggleStyles();
+
+    if (document.getElementById("newArchetypeCtrl")) return;
+
+    const box = document.createElement("div");
+    box.id = "newArchetypeCtrl";
+    box.className = "modsCtrl";
+
+    const label = document.createElement("label");
+    label.className = "d2ac-switch";
+
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.checked = !!state.enableNewArchetypes;
+
+    const slider = document.createElement("span");
+    slider.className = "d2ac-slider";
+
+    const text = document.createElement("span");
+    text.textContent =
+        "Enable New Archetypes (Powerhouse, Demolitionist, etc.)";
+
+    label.appendChild(input);
+    label.appendChild(slider);
+    label.appendChild(text);
+    box.appendChild(label);
+
+    modsCtrlBox.parentElement.insertBefore(box, modsCtrlBox);
+
+    input.addEventListener("change", (e) => {
+        state.enableNewArchetypes = !!e.target.checked;
+        import("./ui.render.js").then((m) => m.render());
+    });
 }
 
 export function makeBarsWithAdjustments(

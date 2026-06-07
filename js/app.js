@@ -1,9 +1,17 @@
 import { setMinorModsCap} from "./state.js";
-import {buildTickMarks, buildSliders, buildAugmentationUI, buildFragmentsUI, createCustomExoticUI, minorModsSelect,} from "./ui.parts.js";
-import { render } from "./ui.render.js";
+import {
+    buildTickMarks,
+    buildSliders,
+    buildAugmentationUI,
+    buildFragmentsUI,
+    createCustomExoticUI,
+    buildNewArchetypeToggleUI,
+    minorModsSelect,
+} from "./ui.parts.js";import { render } from "./ui.render.js";
 
 buildTickMarks();
 buildSliders();
+buildNewArchetypeToggleUI();
 buildAugmentationUI();
 buildFragmentsUI();
 createCustomExoticUI();

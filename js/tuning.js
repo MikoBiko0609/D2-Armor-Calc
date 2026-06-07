@@ -242,10 +242,25 @@ export function effectiveAugments(
     fragments = Object.fromEntries(STATS.map((k) => [k, 0])),
     minorCap = 0,
     majorCap = 0,
+    tuningSlots = null,
 ) {
-    if (!autoEnabled) return userAugments;
+    const slots =
+        tuningSlots ??
+        Math.max(
+            4,
+            Math.min(5, Number(userAugments?._tuningSlots || 4)),
+        );
 
-    // build a stable cache key
+    if (!autoEnabled) {
+        const rows = Array.isArray(userAugments) ? userAugments.slice() : [];
+
+        while (rows.length < slots) {
+            rows.push({ mode: "general", plus: "none", minus: "none" });
+        }
+
+        return rows.slice(0, slots);
+    }
+
     const round = (n) => Math.round(Number(n) || 0);
     const key = JSON.stringify({
         a: Object.fromEntries(
@@ -256,9 +271,9 @@ export function effectiveAugments(
         mi: minorCap,
         ma: majorCap,
         lf: leastFav || "none",
+        slots,
     });
 
-    // simple static cache (1 entry is enough in practice between quick updates)
     effectiveAugments._lastKey ??= "";
     effectiveAugments._lastVal ??= userAugments;
 
@@ -272,7 +287,7 @@ export function effectiveAugments(
         fragments,
         minorCap,
         majorCap,
-        4,
+        slots,
         leastFav || "none",
     );
 

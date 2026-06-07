@@ -61,7 +61,6 @@ function buildModsSummaryCard(chosenPieces, effectiveAugRows) {
     const card = document.createElement("div");
     card.className = "card";
 
-    // RIGHT side trace for Balanced rows (if any) uses *effective* rows
     const armorTotals = chosenPieces.reduce(
         (acc, p) => {
             const v = p.vector || {};
@@ -74,13 +73,14 @@ function buildModsSummaryCard(chosenPieces, effectiveAugRows) {
         Object.fromEntries(STATS.map((k) => [k, 0])),
     );
 
-    const generalVec = augmentsToVector(effectiveAugRows); // ±5 only
+    const generalVec = augmentsToVector(effectiveAugRows);
     const withAug = clampAddSigned(
         armorTotals,
         generalVec,
         -TOTAL_CAP,
         TOTAL_CAP,
     );
+
     const withFrags = clampAddSigned(
         withAug,
         state.fragments,
@@ -91,8 +91,8 @@ function buildModsSummaryCard(chosenPieces, effectiveAugRows) {
     const balancedCnt = countBalancedRows(effectiveAugRows);
     const balSim = applyBalancedWithTrace(withFrags, balancedCnt);
 
-    // collect armor mods per piece (LEFT)
     const perPieceMods = [];
+
     for (const p of chosenPieces) {
         if (p.mod && p.mod.label) {
             perPieceMods.push({
@@ -105,7 +105,6 @@ function buildModsSummaryCard(chosenPieces, effectiveAugRows) {
         }
     }
 
-    // layout 40/60 with centered columns
     const cols = document.createElement("div");
     cols.style.display = "grid";
     cols.style.gridTemplateColumns = "2fr 3fr";
@@ -132,8 +131,6 @@ function buildModsSummaryCard(chosenPieces, effectiveAugRows) {
     headerRow.appendChild(rightHdr);
     cols.appendChild(headerRow);
 
-    // LEFT column: Stat Mods (4 slots)
-    // LEFT column: Stat Mods (5 slots)
     const left = document.createElement("div");
     const leftInner = document.createElement("div");
     leftInner.style.display = "flex";
@@ -142,7 +139,6 @@ function buildModsSummaryCard(chosenPieces, effectiveAugRows) {
     leftInner.style.width = "fit-content";
     leftInner.style.margin = "0 auto";
 
-    // change 4 → 5 so we always show a fifth slot if a fifth mod exists
     for (let i = 0; i < 5; i++) {
         const line = document.createElement("div");
         line.className = "modsLine";
@@ -153,7 +149,7 @@ function buildModsSummaryCard(chosenPieces, effectiveAugRows) {
         label.textContent = `Slot ${i + 1}:`;
         line.appendChild(label);
 
-        const m = perPieceMods[i]; // will be undefined/null if no 5th mod
+        const m = perPieceMods[i];
         const pill = document.createElement("span");
         pill.className = "statpill";
         pill.textContent = m ? m.label : "—";
@@ -161,9 +157,9 @@ function buildModsSummaryCard(chosenPieces, effectiveAugRows) {
 
         leftInner.appendChild(line);
     }
+
     left.appendChild(leftInner);
 
-    // RIGHT column: Tuning Mods (effective rows, 4)
     const right = document.createElement("div");
     const rightInner = document.createElement("div");
     rightInner.style.display = "flex";
@@ -173,12 +169,18 @@ function buildModsSummaryCard(chosenPieces, effectiveAugRows) {
     rightInner.style.margin = "0 auto";
 
     let balIdx = 0;
-    for (let i = 0; i < 4; i++) {
+    const tuningRows = Math.max(5, effectiveAugRows?.length || 0);
+
+    for (let i = 0; i < tuningRows; i++) {
         const row = effectiveAugRows[i] || {
             mode: "general",
             plus: "none",
             minus: "none",
         };
+
+        const piece = chosenPieces[i];
+        const artifice = piece?.artifice || null;
+
         const line = document.createElement("div");
         line.className = "modsLine";
         line.style.justifyContent = "center";
@@ -188,35 +190,55 @@ function buildModsSummaryCard(chosenPieces, effectiveAugRows) {
         label.textContent = `Slot ${i + 1}:`;
         line.appendChild(label);
 
-        if (row.mode === "balanced") {
+        if (artifice) {
+            const plus = document.createElement("span");
+            plus.className = "statpill";
+            plus.textContent = artifice.label || `+3 ${capitalize(artifice.stat)}`;
+
+            const minus = document.createElement("span");
+            minus.className = "statpill";
+            minus.textContent = "—";
+
+            line.appendChild(plus);
+            line.appendChild(minus);
+        } else if (row.mode === "balanced") {
             const picked = balSim.trace[balIdx] || [];
             balIdx++;
+
             const chip = document.createElement("span");
             chip.className = "statpill";
             chip.textContent = picked.length
                 ? `Balanced → ` +
                   picked.map((s) => `+1 ${capitalize(s)}`).join(", ")
-                : "Balanced (no eligible stats?)";
+                : "Balanced";
             line.appendChild(chip);
         } else {
             const plus = document.createElement("span");
             plus.className = "statpill";
             plus.textContent =
-                row.plus !== "none" ? `+5 ${capitalize(row.plus)}` : "—";
+                row.plus && row.plus !== "none"
+                    ? `+5 ${capitalize(row.plus)}`
+                    : "—";
+
             const minus = document.createElement("span");
             minus.className = "statpill";
             minus.textContent =
-                row.minus !== "none" ? `−5 ${capitalize(row.minus)}` : "—";
+                row.minus && row.minus !== "none"
+                    ? `−5 ${capitalize(row.minus)}`
+                    : "—";
+
             line.appendChild(plus);
             line.appendChild(minus);
         }
 
         rightInner.appendChild(line);
     }
+
     right.appendChild(rightInner);
 
     cols.appendChild(left);
     cols.appendChild(right);
+
     return card;
 }
 
@@ -260,7 +282,12 @@ export async function render() {
 
     // custom exotic passthrough (just structure for worker / fallback)
     const custom = state.customExoticEnabled
-        ? { enabled: true, vector: { ...state.customExotic } }
+        ? {
+              enabled: true,
+              vector: { ...state.customExotic },
+              hasTuning: !!state.customExoticHasTuning,
+              hasArtifice: !!state.customExoticHasArtifice,
+          }
         : { enabled: false };
 
     // snapshot for worker (do NOT mutate)
@@ -272,6 +299,7 @@ export async function render() {
         custom,
         autoAssumeMods: !!state.autoAssumeMods,
         leastFavStat: state.leastFavStat || "none",
+        enableNewArchetypes: !!state.enableNewArchetypes,
     };
 
     // ---------- try worker fast path ----------
@@ -294,9 +322,16 @@ export async function render() {
 
     // ---------- fallback to local solver if worker unavailable or not ok ----------
     if (!ok) {
+        const tuningSlots = snapshot.custom?.enabled
+            ? snapshot.custom.hasTuning
+                ? 5
+                : 4
+            : 5;
+
         const augForSolver = Object.assign(snapshot.augments.slice(), {
             _autoEnabled: snapshot.autoAssumeMods,
             _leastFav: snapshot.leastFavStat,
+            _tuningSlots: tuningSlots,
         });
 
         const resLocal = recommendPieces(
@@ -305,6 +340,7 @@ export async function render() {
             snapshot.fragments,
             snapshot.minorModsCap,
             snapshot.custom,
+            snapshot.enableNewArchetypes,
         );
 
         chosen = resLocal.chosen;
@@ -319,6 +355,10 @@ export async function render() {
             armorOnlyTotals,
             snapshot.targets,
             snapshot.leastFavStat,
+            snapshot.fragments,
+            snapshot.minorModsCap,
+            5 - Math.max(0, Math.min(5, Number(snapshot.minorModsCap) || 0)),
+            tuningSlots,
         );
 
         ok = true;
@@ -430,57 +470,91 @@ export async function render() {
 
     // ---------- PER-PIECE DETAILS ----------
     const perPieceTuning = (() => {
-        const perPiece = chosen.map(() => ({ adds: zeroVec(), label: "None" }));
-        const legIdxs = [];
+        const perPiece = chosen.map((p) => ({
+            adds: zeroVec(),
+            label: p.artifice?.label || "None",
+            isArtificeOnly: !!p.artifice && !p.allowTuning,
+        }));
+
+        const tunableIdxs = [];
+
         chosen.forEach((p, i) => {
-            if (p.type === "Legendary") legIdxs.push(i);
+            if (
+                p.type === "Legendary" ||
+                (p.type === "Exotic" && p.setName !== "Custom Exotic") ||
+                p.allowTuning
+            ) {
+                tunableIdxs.push(i);
+            }
         });
-        if (legIdxs.length === 0) return perPiece;
 
         let cursor = 0;
+
         for (const row of augUsedForUI) {
             const isBalanced = row.mode === "balanced";
             const hasGeneral =
                 row.mode === "general" &&
                 ((row.plus && row.plus !== "none") ||
                     (row.minus && row.minus !== "none"));
-            if (!isBalanced && !hasGeneral) continue;
 
-            const iPiece = legIdxs[cursor % legIdxs.length];
+            if (!isBalanced && !hasGeneral) continue;
+            if (tunableIdxs.length === 0) break;
+
+            const iPiece = tunableIdxs[cursor % tunableIdxs.length];
             cursor++;
+
+            const piece = chosen[iPiece];
+            if (piece.artifice && !piece.allowTuning) continue;
 
             const slot = perPiece[iPiece];
             const adds = slot.adds;
 
             if (isBalanced) {
-                const piece = chosen[iPiece];
                 const order = [...STATS].sort(
                     (a, b) => (piece.vector[a] || 0) - (piece.vector[b] || 0),
                 );
+
                 for (let j = 0; j < 3 && j < order.length; j++) {
                     const k = order[j];
                     adds[k] = (adds[k] || 0) + 1;
                 }
+
                 slot.label = "Balanced × 1";
             } else {
-                if (row.plus && row.plus !== "none")
+                if (row.plus && row.plus !== "none") {
                     adds[row.plus] = (adds[row.plus] || 0) + 5;
-                if (row.minus && row.minus !== "none")
-                    adds[row.minus] = (adds[row.minus] || 0) - 5;
-                const lbls = [];
-                if (row.plus && row.plus !== "none")
-                    lbls.push(`+5 ${capitalize(row.plus)}`);
-                if (row.minus && row.minus !== "none")
-                    lbls.push(`−5 ${capitalize(row.minus)}`);
-                slot.label = lbls.length ? lbls.join(" / ") : "None";
+                }
 
-                // remember this piece's +5 tuning stat
+                if (row.minus && row.minus !== "none") {
+                    adds[row.minus] = (adds[row.minus] || 0) - 5;
+                }
+
+                const lbls = [];
+
+                if (row.plus && row.plus !== "none") {
+                    lbls.push(`+5 ${capitalize(row.plus)}`);
+                }
+
+                if (row.minus && row.minus !== "none") {
+                    lbls.push(`−5 ${capitalize(row.minus)}`);
+                }
+
+                slot.label = lbls.length ? lbls.join(" / ") : slot.label;
+
                 slot.plus =
                     row.plus && row.plus !== "none"
                         ? row.plus.toLowerCase()
                         : null;
             }
         }
+
+        chosen.forEach((p, i) => {
+            if (p.artifice) {
+                addToVec(perPiece[i].adds, p.artifice.stat, p.artifice.amount);
+                perPiece[i].label = p.artifice.label;
+            }
+        });
+
         return perPiece;
     })();
 

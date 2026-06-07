@@ -1,5 +1,5 @@
 import {STATS, ARMOR_CAP, TOTAL_CAP, NUM_PIECES, zeroVec, clampAdd, clampAddSigned, deficitScore, capitalize,} from "./core.js";
-import { ARCH } from "./archetypes.js";
+import { buildArchetypes } from "./archetypes.js";
 import {augmentsToVector, applyBalanced, countBalancedRows,} from "./tuning.js";
 import { effectiveAugments } from "./tuning.js";
 
@@ -43,28 +43,50 @@ export function recommendPieces(
     fragments,
     minorModsCap,
     customOpt,
+    enableNewArchetypes = true,
 ) {
     const majorModsCap =
         NUM_PIECES - Math.max(0, Math.min(NUM_PIECES, minorModsCap));
+
     const custom = customOpt?.enabled
         ? {
               enabled: true,
               vector: { ...customOpt.vector },
               setName: "Custom Exotic",
               tertiary: "custom",
+              hasTuning: !!customOpt.hasTuning,
+              hasArtifice: !!customOpt.hasArtifice,
           }
         : { enabled: false };
+
+    const tuningSlots = custom.enabled
+        ? custom.hasTuning
+            ? 5
+            : 4
+        : 5;
+
+    const augForSolver = Object.assign(
+        Array.isArray(augments) ? augments.slice() : [],
+        augments || {},
+        {
+            _tuningSlots: tuningSlots,
+        },
+    );
+
+    const arch = buildArchetypes(enableNewArchetypes);
 
     for (const BW of BEAM_WIDTHS) {
         const res = runBeam(
             targets,
-            augments,
+            augForSolver,
             fragments,
             minorModsCap,
             majorModsCap,
             BW,
             custom,
+            arch,
         );
+
         if (res.feasible || BW === BEAM_WIDTHS.at(-1)) return res;
     }
 }
@@ -77,11 +99,12 @@ export function runBeam(
     majorModsCap,
     BEAM_WIDTH,
     custom,
+    arch,
 ) {
     let beam = [
         { armor: zeroVec(), pieces: [], exoticsUsed: 0, step: 0, score: 0 },
     ];
-    // initial optimistic using AUTO where applicable (startTotals==current armor here: zero)
+
     beam[0].score = optimisticResidual(
         beam[0].armor,
         targets,
@@ -90,28 +113,33 @@ export function runBeam(
         minorModsCap,
         majorModsCap,
         NUM_PIECES,
+        custom,
     );
 
     for (let step = 0; step < NUM_PIECES; step++) {
         const next = [];
+
         for (const node of beam) {
             const slotsLeft = NUM_PIECES - node.step - 1;
             const mustExo = node.exoticsUsed === 0 && slotsLeft === 0;
 
             if (!mustExo) {
-                for (const arch of ARCH.leg) {
+                for (const archPiece of arch.leg) {
                     const armorAfter = clampAdd(
                         node.armor,
-                        arch.vector,
+                        archPiece.vector,
                         ARMOR_CAP,
                     );
+
                     const child = {
                         armor: armorAfter,
-                        pieces: [...node.pieces, { ...arch }],
+                        pieces: [...node.pieces, { ...archPiece }],
                         exoticsUsed: node.exoticsUsed,
                         step: node.step + 1,
                     };
+
                     const rem = NUM_PIECES - child.step;
+
                     child.score = optimisticResidual(
                         child.armor,
                         targets,
@@ -120,7 +148,9 @@ export function runBeam(
                         minorModsCap,
                         majorModsCap,
                         rem,
+                        custom,
                     );
+
                     next.push(child);
                 }
             }
@@ -132,6 +162,7 @@ export function runBeam(
                         custom.vector,
                         ARMOR_CAP,
                     );
+
                     const child = {
                         armor: armorAfter,
                         pieces: [
@@ -141,12 +172,16 @@ export function runBeam(
                                 setName: custom.setName,
                                 tertiary: custom.tertiary,
                                 vector: custom.vector,
+                                allowTuning: !!custom.hasTuning,
+                                hasArtifice: !!custom.hasArtifice,
                             },
                         ],
                         exoticsUsed: 1,
                         step: node.step + 1,
                     };
+
                     const rem = NUM_PIECES - child.step;
+
                     child.score = optimisticResidual(
                         child.armor,
                         targets,
@@ -155,22 +190,33 @@ export function runBeam(
                         minorModsCap,
                         majorModsCap,
                         rem,
+                        custom,
                     );
+
                     next.push(child);
                 } else {
-                    for (const arch of ARCH.exo) {
+                    for (const archPiece of arch.exo) {
                         const armorAfter = clampAdd(
                             node.armor,
-                            arch.vector,
+                            archPiece.vector,
                             ARMOR_CAP,
                         );
+
                         const child = {
                             armor: armorAfter,
-                            pieces: [...node.pieces, { ...arch }],
+                            pieces: [
+                                ...node.pieces,
+                                {
+                                    ...archPiece,
+                                    allowTuning: true,
+                                },
+                            ],
                             exoticsUsed: 1,
                             step: node.step + 1,
                         };
+
                         const rem = NUM_PIECES - child.step;
+
                         child.score = optimisticResidual(
                             child.armor,
                             targets,
@@ -179,25 +225,27 @@ export function runBeam(
                             minorModsCap,
                             majorModsCap,
                             rem,
+                            custom,
                         );
+
                         next.push(child);
                     }
                 }
             }
         }
+
         next.sort((a, b) => a.score - b.score);
         beam = next.slice(0, BEAM_WIDTH);
+
         if (!beam.length) break;
     }
 
-    let best = null,
-        bestScore = Infinity;
+    let best = null;
+    let bestScore = Infinity;
+
     for (const node of beam) {
         if (node.step !== NUM_PIECES || node.exoticsUsed !== 1) continue;
 
-        // compute effective augments based on THIS node's armor totals
-        // simulate the same sequence solver uses: armor -> (general ±5) -> fragments -> balanced -> mods
-        // for "startTotals" we want armor ONLY (no general rows yet)
         const effAug = effectiveAugments(
             node._userAugments || augments,
             (augments && augments._autoEnabled) || false,
@@ -215,31 +263,114 @@ export function runBeam(
             effAug,
             fragments,
             minorModsCap,
-            NUM_PIECES - minorModsCap,
+            majorModsCap,
+            !!custom?.hasArtifice,
         );
+
         const score = deficitScore(plan.totals, targets);
+
         if (score < bestScore) {
+            let pieces = distributeModsToPieces(node.pieces, plan.mods);
+
+            if (plan.artificeStat) {
+                pieces = pieces.map((p) =>
+                    p.setName === "Custom Exotic"
+                        ? {
+                              ...p,
+                              artifice: {
+                                  stat: plan.artificeStat,
+                                  amount: 3,
+                                  label: `+3 ${capitalize(plan.artificeStat)}`,
+                              },
+                          }
+                        : p,
+                );
+            }
+
             best = {
-                pieces: distributeModsToPieces(node.pieces, plan.mods),
+                pieces,
                 totals: plan.totals,
                 totalsRaw: plan.totalsRaw,
             };
+
             bestScore = score;
         }
     }
-    if (!best)
+
+    if (!best) {
         return {
             chosen: [],
             totals: zeroVec(),
             totalsRaw: zeroVec(),
             feasible: false,
         };
+    }
+
     const feasible = STATS.every((k) => best.totals[k] >= targets[k]);
+
     return {
         chosen: best.pieces,
         totals: best.totals,
         totalsRaw: best.totalsRaw,
         feasible,
+    };
+}
+
+export function applyBestArtificeBonus(
+    totals,
+    targets,
+    augmentsEffective,
+    minorCap,
+    majorCap,
+) {
+    let bestStat = null;
+    let bestPlan = null;
+    let bestScore = Infinity;
+
+    const tryPlan = (stat) => {
+        const testTotals = { ...totals };
+
+        if (stat) {
+            testTotals[stat] = Math.min(
+                TOTAL_CAP,
+                (testTotals[stat] || 0) + 3,
+            );
+        }
+
+        const withBalanced = applyBalanced(
+            testTotals,
+            countBalancedRows(augmentsEffective),
+        );
+
+        const plan = allocateModsCore(
+            withBalanced,
+            targets,
+            minorCap,
+            majorCap,
+        );
+
+        const score = deficitScore(plan.totals, targets);
+
+        return { stat, plan, score };
+    };
+
+    const noArtifice = tryPlan(null);
+    bestPlan = noArtifice.plan;
+    bestScore = noArtifice.score;
+
+    for (const k of STATS) {
+        const result = tryPlan(k);
+
+        if (result.score < bestScore) {
+            bestScore = result.score;
+            bestStat = k;
+            bestPlan = result.plan;
+        }
+    }
+
+    return {
+        stat: bestStat,
+        plan: bestPlan,
     };
 }
 
@@ -327,25 +458,48 @@ export function allocateModsWithAugFrags(
     fragments,
     minorCap,
     majorCap,
+    hasArtifice = false,
 ) {
-    // apply general ±5 first (only from eff augments), then fragments, then balanced, then mods
     const withGeneral = clampAddSigned(
         armorTotals,
         augmentsToVector(augmentsEffective),
         -TOTAL_CAP,
         TOTAL_CAP,
     );
+
     const withFrags = clampAddSigned(
         withGeneral,
         fragments,
         -TOTAL_CAP,
         TOTAL_CAP,
     );
+
+    if (hasArtifice) {
+        const artificeResult = applyBestArtificeBonus(
+            withFrags,
+            targets,
+            augmentsEffective,
+            minorCap,
+            majorCap,
+        );
+
+        return {
+            ...artificeResult.plan,
+            artificeStat: artificeResult.stat,
+        };
+    }
+
     const withBalanced = applyBalanced(
         withFrags,
         countBalancedRows(augmentsEffective),
     );
-    return allocateModsCore(withBalanced, targets, minorCap, majorCap);
+
+    const result = allocateModsCore(withBalanced, targets, minorCap, majorCap);
+
+    return {
+        ...result,
+        artificeStat: null,
+    };
 }
 
 export function allocateModsCore(

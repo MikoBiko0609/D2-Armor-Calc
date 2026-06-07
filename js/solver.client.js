@@ -41,23 +41,38 @@ export function solveAsync(snapshot) {
     ensureWorker();
 
     if (_pendingResolve) {
-        _pendingResolve = null; 
+        _pendingResolve = null;
     }
+
     const promise = new Promise((resolve) => {
         _pendingResolve = resolve;
     });
 
     _latestEnqueued = snapshot;
     clearTimeout(_debounceTimer);
+
     _debounceTimer = setTimeout(() => {
-        const { targets, augments, fragments, minorModsCap, custom } =
-            _latestEnqueued || {};
+        const {
+            targets,
+            augments,
+            fragments,
+            minorModsCap,
+            custom,
+            enableNewArchetypes,
+        } = _latestEnqueued || {};
+
+        const tuningSlots = custom?.enabled
+            ? custom.hasTuning
+                ? 5
+                : 4
+            : 5;
 
         const augForSolver = Object.assign(
             Array.isArray(augments) ? augments.slice() : [],
             {
                 _autoEnabled: !!(snapshot && snapshot.autoAssumeMods),
                 _leastFav: (snapshot && snapshot.leastFavStat) || "none",
+                _tuningSlots: tuningSlots,
             },
         );
 
@@ -67,17 +82,18 @@ export function solveAsync(snapshot) {
             minorModsCap,
             custom,
             augments: augForSolver,
+            enableNewArchetypes: enableNewArchetypes !== false,
         };
 
-        // ---- coalesce identical requests while a job is in flight ----
         const keyNow = JSON.stringify(payload);
+
         if (keyNow === _lastPayloadKey && _inflight) {
-            // reuse the in-flight job; when it resolves, the *latest* _pendingResolve gets it.
             return;
         }
 
         _lastPayloadKey = keyNow;
         _lastJobId++;
+
         const jobId = _lastJobId;
 
         ensureWorker().postMessage({ jobId, payload });
