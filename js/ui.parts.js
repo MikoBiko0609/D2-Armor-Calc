@@ -602,14 +602,8 @@ export function createCustomExoticUI() {
     p2.className = "subtle";
     p2.textContent = "- Enter BASE MASTERWORKED stats.";
 
-    const p3 = document.createElement("p");
-    p3.className = "subtle";
-    p3.textContent =
-        "- Use the toggles above if the roll has a tuning slot or artifice slot.";
-
     panel.appendChild(p1);
     panel.appendChild(p2);
-    panel.appendChild(p3);
 
     const wrap = document.createElement("div");
     wrap.id = "customExoWrap";
@@ -647,7 +641,7 @@ export function createCustomExoticUI() {
         const range = document.createElement("input");
         range.type = "range";
         range.min = "0";
-        range.max = "45";
+        range.max = "35";
         range.step = "1";
         range.dataset.key = k;
         range.value = String(state.customExotic[k]);
@@ -655,14 +649,14 @@ export function createCustomExoticUI() {
         const val = document.createElement("input");
         val.type = "number";
         val.min = "0";
-        val.max = "45";
+        val.max = "35";
         val.step = "1";
         val.className = "valueInput";
         val.dataset.key = k;
         val.value = String(state.customExotic[k]);
 
         attachRangeWithTooltip(range, (v) => {
-            const n = Math.max(0, Math.min(45, Number(v) || 0));
+            const n = Math.max(0, Math.min(35, Number(v) || 0));
             state.customExotic[k] = n;
             range.value = String(n);
             val.value = String(n);
@@ -670,7 +664,7 @@ export function createCustomExoticUI() {
         });
 
         const commitNum = (raw) => {
-            const n = Math.max(0, Math.min(45, Number(raw) || 0));
+            const n = Math.max(0, Math.min(35, Number(raw) || 0));
             state.customExotic[k] = n;
             range.value = String(n);
             val.value = String(n);
