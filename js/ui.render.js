@@ -380,10 +380,19 @@ export async function render() {
 
     // ---------- SUMMARY (grouped; tertiaries only) ----------
     const perGroup = new Map();
+
     chosen.forEach((c) => {
-        const key = `${c.setName} (${c.type})`;
-        if (!perGroup.has(key))
-            perGroup.set(key, { total: 0, tert: new Map() });
+        const isCustomExotic = c.setName === "Custom Exotic";
+        const key = isCustomExotic ? "Custom Exotic" : c.setName;
+
+        if (!perGroup.has(key)) {
+            perGroup.set(key, {
+                total: 0,
+                tert: new Map(),
+                isCustomExotic,
+            });
+        }
+
         const g = perGroup.get(key);
         g.total += 1;
         g.tert.set(c.tertiary ?? "—", (g.tert.get(c.tertiary ?? "—") || 0) + 1);
@@ -395,25 +404,31 @@ export async function render() {
 
         const top = document.createElement("div");
         top.className = "top";
+
         const title = document.createElement("div");
-        title.textContent = `${groupName} × ${info.total}`;
+        title.textContent = info.isCustomExotic
+            ? `${groupName} (Exotic) × ${info.total}`
+            : `${groupName} × ${info.total}`;
+
         top.appendChild(title);
         card.appendChild(top);
 
         const tline = document.createElement("div");
         tline.className = "tertsLine";
+
         const tlabel = document.createElement("span");
         tlabel.className = "label-chip";
         tlabel.textContent = "Tertiaries:";
         tline.appendChild(tlabel);
+
         for (const [tert, n] of info.tert.entries()) {
             const pill = document.createElement("span");
             pill.className = "statpill";
             pill.textContent = `${capitalize(String(tert))} × ${n}`;
             tline.appendChild(pill);
         }
-        card.appendChild(tline);
 
+        card.appendChild(tline);
         summaryRoot.appendChild(card);
     }
 
@@ -629,9 +644,7 @@ export async function render() {
         card.appendChild(tuningLine);
 
         const adds = { ...(perPieceTuning[idx]?.adds || zeroVec()) };
-        if (c.mod) {
-            addToVec(adds, c.mod.stat, c.mod.amount);
-        }
+
         card.appendChild(
             makeBarsWithAdjustments(c.vector, adds, PER_PIECE_MAX),
         );
