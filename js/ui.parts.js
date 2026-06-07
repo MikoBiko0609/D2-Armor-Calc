@@ -596,7 +596,7 @@ export function createCustomExoticUI() {
     const p1 = document.createElement("p");
     p1.className = "subtle";
     p1.textContent =
-        "- Used for Exotic Class Items, Non-Max Statted Exotics, or old Exotics.";
+        "- Used for Exotic Class Items or Old Exotics.";
 
     const p2 = document.createElement("p");
     p2.className = "subtle";
