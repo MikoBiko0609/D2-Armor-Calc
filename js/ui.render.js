@@ -580,7 +580,7 @@ export async function render() {
         const top = document.createElement("div");
         top.className = "top";
         const title = document.createElement("div");
-        title.textContent = `#${idx + 1} — ${c.setName} (${c.type})`;
+        title.textContent = `#${idx + 1} — ${c.setName}`;
         top.appendChild(title);
 
         import("./actions.dim.js").then(
