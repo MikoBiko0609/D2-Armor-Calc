@@ -407,7 +407,7 @@ export async function render() {
 
         const title = document.createElement("div");
         title.textContent = info.isCustomExotic
-            ? `${groupName} (Exotic) × ${info.total}`
+            ? "Custom Exotic"
             : `${groupName} × ${info.total}`;
 
         top.appendChild(title);
