@@ -1,4 +1,6 @@
-import { setMinorModsCap} from "./state.js";
+import { inject } from "@vercel/analytics";
+
+import { setMinorModsCap } from "./state.js";
 import {
     buildTickMarks,
     buildSliders,
@@ -7,9 +9,8 @@ import {
     createCustomExoticUI,
     buildNewArchetypeToggleUI,
     minorModsSelect,
-} from "./ui.parts.js";import { render } from "./ui.render.js";
-
-import { inject } from "@vercel/analytics"
+} from "./ui.parts.js";
+import { render } from "./ui.render.js";
 
 inject();
 
